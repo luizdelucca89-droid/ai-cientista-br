@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -125,28 +126,51 @@ class LaTeXFormatter:
         }
 
     def compile_pdf(self, tex_path: Path, output_dir: Path | None = None) -> str | None:
-        """Compila o ``.tex`` com ``pdflatex``; devolve o caminho do PDF ou ``None``."""
+        """Compila o ``.tex`` com ``pdflatex``; devolve o caminho do PDF ou ``None``.
+
+        A compilação ocorre em um diretório temporário para não sobrescrever o
+        ``paper.pdf`` produzido pelo formatador ABNT; o resultado é copiado para
+        ``paper_latex.pdf``. Nunca levanta exceção: qualquer falha (binário
+        ausente, erro de LaTeX, timeout, saída não-UTF-8) apenas registra aviso e
+        devolve ``None``, para que o ciclo continue com os demais artefatos.
+        """
         if not self.available():
             logger.info("pdflatex não encontrado; mantendo apenas o .tex")
             return None
         workdir = Path(output_dir or tex_path.parent)
         ensure_dir(workdir)
         try:
-            process = subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", f"-output-directory={workdir}", str(tex_path)],
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
-            pdf_path = workdir / (tex_path.stem + ".pdf")
-            if process.returncode == 0 and pdf_path.exists():
-                return str(pdf_path)
-            tail = (process.stdout or process.stderr or "").strip().splitlines()[-6:]
-            logger.warning("pdflatex falhou: %s", " | ".join(tail))
+            with tempfile.TemporaryDirectory() as build_dir:
+                # pdflatex escreve mensagens em Latin-1 sob o babel brasileiro;
+                # sem errors="replace" a decodificação UTF-8 padrão quebra tudo.
+                process = subprocess.run(
+                    [
+                        "pdflatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        f"-output-directory={build_dir}",
+                        str(tex_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.timeout_seconds,
+                    check=False,
+                )
+                built = Path(build_dir) / (tex_path.stem + ".pdf")
+                if process.returncode == 0 and built.exists():
+                    target = workdir / (tex_path.stem + "_latex.pdf")
+                    shutil.copyfile(built, target)
+                    return str(target)
+                tail = (process.stdout or process.stderr or "").strip().splitlines()[-6:]
+                logger.warning("pdflatex falhou: %s", " | ".join(tail))
+                return None
+        except subprocess.TimeoutExpired:
+            logger.warning("pdflatex excedeu o tempo limite de %ss", self.timeout_seconds)
             return None
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            logger.warning("Erro ao compilar LaTeX: %s", exc)
+        except Exception as exc:  # noqa: BLE001 - artefato opcional nunca derruba o ciclo
+            logger.warning("Erro ao compilar LaTeX: %s: %s", type(exc).__name__, exc)
             return None
 
     def write(
@@ -158,7 +182,11 @@ class LaTeXFormatter:
         output_dir: Path,
         figures: list[str] | None = None,
     ) -> dict[str, str | None]:
-        """Grava ``paper.tex`` e, quando possível, compila ``paper.pdf``."""
+        """Grava ``paper.tex`` e, quando possível, compila ``paper_latex.pdf``.
+
+        O PDF do LaTeX usa nome distinto de ``paper.pdf`` (gerado pelo formatador
+        ABNT) para que os dois artefatos coexistam em vez de se sobrescreverem.
+        """
         ensure_dir(output_dir)
         tex_path = output_dir / "paper.tex"
         tex_path.write_text(self.render_tex(topic, sections, references, metadata, figures), encoding="utf-8")

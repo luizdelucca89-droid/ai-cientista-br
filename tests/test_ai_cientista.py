@@ -467,6 +467,49 @@ def test_latex_formatter_escapes_and_structures():
     assert "\\section{Introdução}" in tex
 
 
+def test_latex_compile_produces_distinct_pdf(tmp_path):
+    """Com pdflatex presente, o PDF do LaTeX é separado e não sobrescreve o ABNT."""
+    from core.paper import LaTeXFormatter
+
+    formatter = LaTeXFormatter()
+    if not formatter.available():
+        pytest.skip("pdflatex indisponível neste ambiente")
+
+    abnt_pdf = tmp_path / "paper.pdf"
+    abnt_pdf.write_bytes(b"%PDF-1.4 abnt-marker")
+
+    result = formatter.write(
+        topic="Predição de surtos de dengue no Brasil",
+        sections={
+            "resumo": "Resumo com acentuação: predição, irrigação, saúde.",
+            "introducao": "Introdução com 50% de dados_e_mais.",
+            "metodologia": "Metodologia.",
+            "resultados": "Resultados.",
+            "conclusao": "Conclusão.",
+        },
+        references=[{"autores": ["Silva, J."], "titulo": "Artigo", "ano": 2024, "periodico": "Rev", "doi": "10.1/x"}],
+        metadata={"titulo": "Teste", "autores": ["IA"], "data": "2024-01-01", "palavras_chave": ["a"], "keywords": ["b"]},
+        output_dir=tmp_path,
+    )
+    assert result["tex"] and Path(result["tex"]).exists()
+    assert result["pdf"] and Path(result["pdf"]).name == "paper_latex.pdf"
+    assert Path(result["pdf"]).read_bytes().startswith(b"%PDF")
+    assert abnt_pdf.read_bytes() == b"%PDF-1.4 abnt-marker"
+
+
+def test_latex_compile_never_raises_on_failure(tmp_path):
+    """LaTeX inválido não deve propagar exceção; o ciclo segue com o .tex."""
+    from core.paper import LaTeXFormatter
+
+    formatter = LaTeXFormatter()
+    if not formatter.available():
+        pytest.skip("pdflatex indisponível neste ambiente")
+
+    broken = tmp_path / "quebrado.tex"
+    broken.write_text("\\documentclass{article}\\begin{document}\\naoexiste\\end{document}", encoding="utf-8")
+    assert formatter.compile_pdf(broken, tmp_path) is None
+
+
 def test_doctor_reports_environment(tmp_path):
     """O diagnóstico detecta dependências e gravabilidade sem rede."""
     from core.doctor import Doctor, render

@@ -93,6 +93,18 @@ class Doctor:
         except OSError as exc:
             self.checks.append(Check(f"diretório de saída gravável: {output_dir}", False, str(exc)))
 
+        if shutil.which("pdflatex"):
+            self.checks.append(Check("pdflatex (artigo LaTeX)", True, "paper_latex.pdf será compilado"))
+        else:
+            self.checks.append(
+                Check(
+                    "pdflatex (artigo LaTeX)",
+                    False,
+                    "ausente: gera apenas paper.tex (apt-get install texlive-latex-base texlive-lang-portuguese)",
+                    critical=False,
+                )
+            )
+
     def _check_providers(self) -> None:
         try:
             from llm_providers import build_llm_client

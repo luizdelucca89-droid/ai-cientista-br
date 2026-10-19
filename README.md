@@ -20,7 +20,7 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 | Execução de experimentos | **Real.** Treina regressão logística, floresta aleatória e gradient boosting; calcula acurácia, F1, AUC, intervalos de confiança bootstrap e testes t pareado/Wilcoxon. |
 | Métricas no artigo | **Reais.** Os números vêm da execução, nunca de texto gerado. |
 | Revisão por pares | **Real.** Painel de 5 revisores independentes com meta-revisor e voto majoritário ordinal. |
-| Formatação ABNT | **Real.** Gera Markdown, PDF e LaTeX (`.tex`, compilado quando há `pdflatex`). |
+| Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
 | Base experimental | **Sintética e reprodutível** (seed fixa), inspirada em séries públicas brasileiras. Não é uma base oficial. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
@@ -46,7 +46,7 @@ As técnicas abaixo foram portadas (ou reimplementadas) a partir dos originais.
 | Contabilidade de tokens/custo | v3 `cost_tracking.py` | `LLMClient.stats()` — tokens estimados, cache hits, latência por provider. |
 | Diagnóstico do ambiente (`doctor`) | v3 `agsci doctor` | `python main.py --doctor` — Python, dependências, saída, providers e fontes. |
 | Execução paralela de vários tópicos | v1 `--parallel` | `python main.py --topics-file ... --parallel N` — um processo por tópico. |
-| Artigo em LaTeX | v1 `--writeup latex` | `core/paper/latex.py` — gera `.tex` e compila com `pdflatex` se disponível. |
+| Artigo em LaTeX | v1 `--writeup latex` | `core/paper/latex.py` — gera `paper.tex` e compila `paper_latex.pdf` com `pdflatex`. |
 
 O que **não** foi portado, por depender de infraestrutura ou pressupostos que não
 se aplicam aqui: execução em contêiner Docker com agentes de código (v3),
@@ -68,11 +68,14 @@ source venv/bin/activate        # Linux/macOS
 pip install -r requirements.txt
 ```
 
-Para gerar PDF via LaTeX (opcional):
+Para gerar PDF via LaTeX (opcional, mas recomendado):
 
 ```bash
 sudo apt-get install texlive-latex-base texlive-latex-recommended texlive-lang-portuguese
 ```
+
+Sem o `pdflatex`, o ciclo continua normalmente e grava apenas `paper.tex`; o
+`paper.pdf` (ABNT) é sempre gerado via `fpdf2`.
 
 ## Uso
 
@@ -187,8 +190,9 @@ Pipeline (`Orchestrator.run_research_cycle`):
 8. Validação de qualidade, painel de revisão, formatação ABNT/LaTeX e
    gravação de artefatos.
 
-Cada ciclo grava, em `outputs/ciclo_<id>_<slug>/`: `paper.md`, `paper.pdf`,
-`paper.tex`, `experimento_H1.json` e `ciclo_completo.json`.
+Cada ciclo grava, em `outputs/ciclo_<id>_<slug>/`: `paper.md`, `paper.pdf`
+(ABNT), `paper.tex`, `paper_latex.pdf`, `experimento_H1.json` e
+`ciclo_completo.json`.
 
 ---
 
