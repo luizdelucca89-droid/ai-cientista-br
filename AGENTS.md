@@ -52,9 +52,17 @@ comportamento documentado lá.
 
 ## Armadilhas conhecidas
 
+- **Ambiente efêmero**: `/home/openhands/.local` (onde o `pip` instala por padrão)
+  é apagado quando o runtime fica ocioso, e o TeX Live instalado via `apt` também
+  se perde. `/workspace/project` é persistente. Por isso, use sempre um venv
+  dentro do workspace: `python -m venv .venv && .venv/bin/pip install -r requirements.txt`.
+  Sem isso, o ciclo falha com `ModuleNotFoundError: No module named 'numpy'`.
+- Depois de um reset, `apt` fica sem índices: rode `sudo apt-get update` antes de
+  instalar o TeX Live, senão o `apt-get install` falha com "Unable to locate package".
 - `pdflatex` pode não estar instalado; o código deve degradar para gerar apenas
-  `paper.tex` sem falhar.
+  `paper.tex` sem falhar. Os dois testes de compilação usam `pytest.skip` nesse caso.
 - O token de sistema `GITHUB_TOKEN` é somente leitura em alguns repositórios; para
   push/PR use o token do usuário (`GH_TOKEN`).
 - `outputs/`, `*.sqlite3` e `*.pdf` estão no `.gitignore` — artefatos de execução
   não vão para o controle de versão.
+- `pypdf` é apenas ferramenta de verificação, não é dependência do projeto.
