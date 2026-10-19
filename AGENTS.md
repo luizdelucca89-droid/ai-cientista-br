@@ -67,15 +67,24 @@ comportamento documentado lá.
   não vão para o controle de versão.
 - `pypdf` é apenas ferramenta de verificação, não é dependência do projeto.
 
-## Escopo dos dados: evidência real, experimento sintético
+## Escopo dos dados: experimento real quando há fonte pública
 
-As integrações (Crossref, SciELO, OpenAlex, BCB, IBGE) alimentam a fase de
-**evidências**: artigos com DOI, séries do BCB e contexto do IBGE entram no
-prompt e nas referências do paper. Já `core/experiments/runner.py` usa
-`generate_synthetic_dataset`, ou seja, o **experimento é sintético e
-determinístico** (seed fixa).
+As integrações (Crossref, SciELO, OpenAlex, BCB, IBGE, InfoDengue) alimentam as
+fases de **evidências** e de **experimento**. `core/experiments/runner.py`
+consulta `core/experiments/datasets.py::build_real_dataset(topic)` antes de
+treinar. Se houver fonte pública para o tema, o experimento roda sobre
+**observações reais**: hoje, dengue usa o InfoDengue (Fiocruz/FGV), com casos e
+clima por semana epidemiológica, corte **temporal** (treino no passado, teste no
+futuro) e linha de base de **persistência** (o nível de alerta atual como
+previsão do próximo).
 
-Consequência prática: o paper cita dados brasileiros reais na fundamentação, mas
-as métricas do modelo (F1, AUC) vêm de dados gerados, não de medições de campo.
-Ao apresentar resultados, deixe isso explícito — o validador costuma apontar a
-mesma coisa quando o tema promete uma variável que a base sintética não contém.
+Sem fonte pública para o tema, o runner cai em `generate_synthetic_dataset`
+(seed fixa). Nesse caso os metadados trazem `tipo: sintetica`, e o resultado não
+sustenta afirmação sobre o fenômeno real — o próprio validador costuma apontar
+isso.
+
+Depois de validar, o orquestrador roda uma conferência determinística de
+**fidelidade numérica** (`core/review/numeros.py`): cada número do manuscrito é
+comparado com os dados produzidos, e os que não têm lastro são reportados. Isso
+pegou um erro real — um `200201` onde o dado dizia `202201`.
+

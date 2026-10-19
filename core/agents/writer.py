@@ -44,7 +44,11 @@ CONTEXTO DISPONÍVEL (use apenas isto):
 Requisitos:
 - Se for "resumo": 150-250 palavras, incluindo objetivo, método, resultados e conclusão.
 - Se for "introducao": contextualize, apresente a lacuna e os objetivos.
-- Se for "metodologia": descreva o protocolo de forma reprodutível.
+- Se for "metodologia": descreva o protocolo de forma reprodutível. Descreva a base
+  exatamente como consta em "resultado_experimental.dataset": se "tipo" for
+  "dados_reais", diga que são observações reais e cite a "origem"; se "split" for
+  "temporal", diga que o corte é temporal. Nunca afirme "base sintética" nem
+  "divisão estratificada" quando os metadados dizem outra coisa.
 - Se for "resultados": reporte apenas os números fornecidos em "resultado_experimental".
 - Se for "conclusao": sintetize, destaque limitações e trabalhos futuros.
 - Não repita o texto de outras seções."""

@@ -68,6 +68,12 @@
       "base_url": "https://servicodados.ibge.gov.br/api",
       "timeout": 15,
       "rate_limit_seconds": 0.5
+    },
+    "infodengue": {
+      "enabled": true,
+      "base_url": "https://info.dengue.mat.br/api",
+      "timeout": 30,
+      "rate_limit_seconds": 1.0
     }
   },
   "agents": {

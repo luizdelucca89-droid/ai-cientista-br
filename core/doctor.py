@@ -29,6 +29,7 @@ SOURCES = [
     ("SciELO ArticleMeta", "https://articlemeta.scielo.org/api/v1/info/"),
     ("IBGE", "https://servicodados.ibge.gov.br/api/v1/localidades/estados"),
     ("Banco Central", "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/1?formato=json"),
+    ("InfoDengue", "https://info.dengue.mat.br/api/alertcity?geocode=3304557&disease=dengue&format=json&ew_start=202301&ew_end=202302"),
 ]
 
 

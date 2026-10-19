@@ -148,6 +148,16 @@ def main(argv: list[str] | None = None) -> int:
     if best in metrics:
         print(f"F1 (melhor modelo): {metrics[best].get('f1_score')}")
     print(f"Score de validação: {phases['validacao'].get('score')}")
+    fidelidade = phases["validacao"].get("fidelidade_numerica") or {}
+    if fidelidade:
+        if fidelidade.get("ok"):
+            print("Fidelidade numérica: todos os números têm lastro nos dados")
+        else:
+            print(f"Fidelidade numérica: {len(fidelidade.get('numeros_sem_suporte', []))} valor(es) sem lastro: {fidelidade.get('numeros_sem_suporte')}")
+    dataset = (phases["experimento"]["resultado"].get("dataset") or {})
+    if dataset:
+        origem = dataset.get("origem", "")
+        print(f"Dados: {dataset.get('tipo')} | n={dataset.get('n_amostras')} | {origem[:70]}")
     decisao = phases["validacao"].get("decisao_painel")
     if decisao:
         consenso = phases["validacao"].get("consenso_painel")

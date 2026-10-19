@@ -131,12 +131,20 @@ def _mock_novelty(prompt: str, seed: int) -> str:
 
 
 def _mock_compliance(prompt: str, seed: int) -> str:
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "divulga_uso_ia": True,
         "tem_limitacoes": True,
         "tem_referencias": True,
         "tem_dados_reprodutiveis": True,
-        "problemas": ["Validade externa limitada pelo uso de dados sintéticos."],
+        "problemas": [
+            (
+                "Validade externa limitada pela cobertura temporal e municipal."
+                if dados_reais
+                else "Validade externa limitada pelo uso de dados sintéticos."
+            )
+        ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -226,17 +234,34 @@ def _mock_analysis(prompt: str, seed: int) -> str:
 
 
 def _mock_review(prompt: str, seed: int) -> str:
-    """Parecer determinístico que varia com a seed, como um revisor real variaria."""
+    """Parecer determinístico que varia com a seed, como um revisor real variaria.
+
+    As críticas precisam fazer sentido para o manuscrito recebido. Se ele descreve
+    observações reais com corte temporal, acusar "dados sintéticos" ou "divisão sem
+    dependência temporal" seria um parecer falso.
+    """
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
+    split_temporal = "temporal" in texto and "treino no passado" in texto
+
     pareceres = ["aceitar com revisões", "revisões maiores", "aceitar com revisões", "aceitar", "revisões maiores"]
     fraquezas = [
-        "Dados sintéticos limitam a validade externa.",
+        (
+            "A cobertura temporal é curta, o que limita a generalização entre anos."
+            if dados_reais
+            else "Dados sintéticos limitam a validade externa."
+        ),
         "Ausência de análise de sensibilidade a hiperparâmetros.",
         "Não há comparação com métodos do estado da arte recentes.",
         "O tamanho amostral não é justificado por análise de poder.",
         "Métricas agregadas escondem desempenho em subgrupos.",
     ]
     erros = [
-        "A divisão treino/teste não considera dependência temporal.",
+        (
+            "O desempenho não é testado em municípios deixados de fora do treino."
+            if split_temporal
+            else "A divisão treino/teste não considera dependência temporal."
+        ),
         "Não há correção para comparações múltiplas.",
         "A seleção de features pode ter vazamento de informação.",
     ]
@@ -269,6 +294,8 @@ def _mock_review(prompt: str, seed: int) -> str:
 
 def _mock_score(prompt: str, seed: int) -> str:
     score = 0.72 + (seed % 20) / 100.0
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "score": round(min(score, 0.95), 3),
         "criterios": {
@@ -278,10 +305,50 @@ def _mock_score(prompt: str, seed: int) -> str:
             "clareza": 0.7,
             "aderencia_abnt": 0.75,
         },
-        "problemas": ["Validade externa limitada por dados sintéticos."],
+        "problemas": [
+            (
+                "Validade externa limitada pela cobertura temporal e municipal."
+                if dados_reais
+                else "Validade externa limitada por dados sintéticos."
+            )
+        ],
         "aprovado": True,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _descricao_da_base(resultado: dict[str, Any] | None) -> tuple[str, str]:
+    """Devolve (frase de origem, frase de partição) fiéis aos metadados.
+
+    O texto do mock precisa acompanhar o que o pipeline realmente fez. Antes ele
+    afirmava "base sintética" e "divisão estratificada" mesmo quando o experimento
+    rodou sobre observações reais do InfoDengue com corte temporal.
+    """
+    dataset = (resultado or {}).get("dataset") or {}
+    tipo = dataset.get("tipo")
+    split = dataset.get("split")
+    origem = dataset.get("origem") or ""
+    n = dataset.get("n_amostras")
+
+    if tipo == "dados_reais":
+        base = f"A base é de observações reais ({origem})"
+        if n:
+            base += f", com {n} registros"
+        base += "."
+    else:
+        base = (
+            "A base é sintética e reprodutível (seed fixa), inspirada em séries "
+            "públicas brasileiras."
+        )
+
+    if split == "temporal":
+        particao = (
+            "Os dados foram padronizados e divididos de forma temporal: treino no "
+            "passado e teste em semanas posteriores, para não vazar o futuro no treino."
+        )
+    else:
+        particao = "Os dados foram padronizados e divididos de forma estratificada."
+    return base, particao
 
 
 def _mock_section(prompt: str, seed: int) -> str:
@@ -291,14 +358,15 @@ def _mock_section(prompt: str, seed: int) -> str:
     best_model = (resultado or {}).get("best_model")
     metrics = (resultado or {}).get("metrics") or {}
     best_metrics = metrics.get(best_model, {}) if best_model else {}
+    base_frase, particao_frase = _descricao_da_base(resultado)
 
     head = prompt.upper()[:400]
     if "RESUMO" in head:
         return (
             f"Este artigo avalia modelos de aprendizado de máquina para {topic}, comparando-os "
-            "a uma linha de base estatística sob protocolo reprodutível (semente fixa, divisão "
-            "estratificada e validação cruzada). Os resultados são reportados com intervalos de "
-            "confiança bootstrap e testes de hipótese pareados."
+            "a uma linha de base sob protocolo reprodutível (semente fixa e validação cruzada). "
+            "Os resultados são reportados com intervalos de confiança bootstrap e testes de "
+            "hipótese pareados."
         )
     if "INTRODUCAO" in head:
         return (
@@ -309,11 +377,10 @@ def _mock_section(prompt: str, seed: int) -> str:
         )
     if "METODOLOGIA" in head:
         return (
-            "Adotou-se um desenho comparativo controlado. A base sintética reprodutível imita séries "
-            "com sazonalidade e tendência, inspirada em indicadores públicos brasileiros. Os dados "
-            "foram padronizados e divididos de forma estratificada. Compararam-se uma linha de base "
-            "estatística e três modelos de aprendizado de máquina, avaliados por acurácia, F1 e AUC, "
-            "com intervalos de confiança bootstrap e testes t pareado e de Wilcoxon."
+            f"Adotou-se um desenho comparativo controlado. {base_frase} {particao_frase} "
+            "Compararam-se uma linha de base e três modelos de aprendizado de máquina, avaliados "
+            "por acurácia, F1 e AUC, com intervalos de confiança bootstrap e testes t pareado e de "
+            "Wilcoxon."
         )
     if "RESULTADOS" in head:
         if best_model and best_metrics:
@@ -340,9 +407,8 @@ def _mock_section(prompt: str, seed: int) -> str:
     if "CONCLUSAO" in head:
         return (
             f"Conclui-se que modelos de aprendizado de máquina são promissores para {topic}, "
-            "porém a evidência é preliminar: a base é sintética e o ganho frente à linha de base "
-            "é limitado. Trabalhos futuros devem replicar o protocolo em bases públicas reais e "
-            "explorar validação temporal externa."
+            "porém a evidência é preliminar: o ganho frente à linha de base é limitado. Trabalhos "
+            "futuros devem ampliar a cobertura temporal e testar a generalização entre municípios."
         )
     return (
         f"Este trabalho investiga {topic} com protocolo reprodutível, métricas padronizadas e "

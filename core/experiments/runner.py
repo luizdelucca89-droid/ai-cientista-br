@@ -1,12 +1,14 @@
 """Execução real de experimentos com análise estatística.
 
-O runner gera uma base sintética **reprodutível** (seed fixa) inspirada em
-séries públicas brasileiras, treina modelos reais (baseline estatístico,
-regressão logística, floresta aleatória e gradient boosting), calcula métricas
-com intervalos de confiança bootstrap e aplica testes de hipótese pareados.
+O runner prefere **dados observados** de APIs públicas brasileiras (ver
+``core.experiments.datasets``): as features são medições reais e o alvo é um
+evento observado. Quando não há fonte real para o tópico, ele recorre a uma base
+sintética **reprodutível** (seed fixa) — mas registra isso nos metadados e no
+manuscrito, em vez de deixar a origem ambígua.
 
-Os números produzidos aqui são reais (executados de fato) e são os únicos
-resultados numéricos usados no manuscrito.
+Em ambos os caminhos os números são reais (executados de fato): modelos de
+verdade, métricas com intervalo de confiança bootstrap e testes de hipótese
+pareados. O que muda é a procedência dos dados.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from core.experiments.datasets import build_real_dataset
 from core.utils import ensure_dir, setup_logger, write_json
 
 logger = setup_logger(__name__)
@@ -81,6 +84,7 @@ def generate_synthetic_dataset(n_samples: int = 600, n_features: int = 6, seed: 
         "n_variaveis": n_features,
         "balanceamento": {"positivos": int(y.sum()), "negativos": int((1 - y).sum())},
         "origem": "sintética reprodutível (seed fixa), inspirada em séries públicas brasileiras",
+        "tipo": "sintetica",
         "seed": seed,
     }
     return X, y, meta
@@ -114,14 +118,23 @@ class ExperimentRunner:
         from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-        from sklearn.model_selection import cross_val_score, train_test_split
+        from sklearn.model_selection import TimeSeriesSplit, cross_val_score, train_test_split
         from sklearn.preprocessing import StandardScaler
         from scipy import stats
 
-        X, y, meta = generate_synthetic_dataset(seed=self.seed)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=self.seed, stratify=y
-        )
+        real = build_real_dataset(topic)
+        if real is not None:
+            X, y, meta = real.X, real.y, real.meta
+            X_train, X_test, y_train, y_test = self._split_temporal(X, y)
+        else:
+            logger.warning(
+                "Sem fonte de dados observados para o tópico; recorrendo à base "
+                "sintética reprodutível (registrado nos metadados)."
+            )
+            X, y, meta = generate_synthetic_dataset(seed=self.seed)
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=self.test_size, random_state=self.seed, stratify=y
+            )
         scaler = StandardScaler().fit(X_train)
         X_train_s, X_test_s = scaler.transform(X_train), scaler.transform(X_test)
 
@@ -137,11 +150,14 @@ class ExperimentRunner:
 
         for name, model in models.items():
             if model is None:
-                # Linha de base estatística real: regra de limiar sobre o sinal
-                # sazonal (feature 0), não a classe majoritária — esta última
-                # produziria F1 trivialmente nulo e uma comparação vazia.
-                y_pred = (X_test[:, 0] > 0).astype(int)
-                y_score = X_test[:, 0]
+                # Linha de base honesta e específica do problema:
+                # - com dados reais de série temporal, persistência do nível atual
+                #   (prever surto se a semana t já está em nível de alerta), que é
+                #   o que um serviço de vigilância faria sem modelo algum;
+                # - no caminho sintético, regra de limiar sobre o sinal sazonal
+                #   (feature 0), não a classe majoritária — esta última produziria
+                #   F1 trivialmente nulo e uma comparação vazia.
+                y_pred, y_score = self._baseline_prediction(X_test, meta)
             else:
                 model.fit(X_train_s, y_train)
                 y_pred = model.predict(X_test_s)
@@ -156,7 +172,15 @@ class ExperimentRunner:
                 auc = float(roc_auc_score(y_test, y_score))
             except ValueError:
                 auc = float("nan")
-            cv = cross_val_score(model, X, y, cv=5, scoring="f1") if model is not None else np.array([f1] * 5)
+            # Série temporal não pode usar CV aleatório: dobrar o futuro no
+            # treino inflaria as métricas. TimeSeriesSplit respeita a ordem.
+            if model is not None:
+                if meta.get("split") == "temporal":
+                    cv = cross_val_score(model, X, y, cv=TimeSeriesSplit(n_splits=5), scoring="f1")
+                else:
+                    cv = cross_val_score(model, X, y, cv=5, scoring="f1")
+            else:
+                cv = np.array([f1] * 5)
             lo, hi = _bootstrap_ci((y_pred == y_test).astype(float), np.mean, alpha=self.alpha, seed=self.seed)
             metrics[name] = {
                 "acuracia": round(acc, 4),
@@ -217,6 +241,30 @@ class ExperimentRunner:
         )
         result.figures = self._save_figures(result)
         return result
+
+    # ------------------------------------------------------------- data splits
+    def _split_temporal(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Corte cronológico: treina no passado, testa no futuro.
+
+        Em série temporal, amostrar o teste ao acaso deixaria semanas futuras no
+        treino — o modelo "veria" o surto antes de prevê-lo. O corte é por
+        posição porque ``build_dengue_outbreak_dataset`` já devolve as amostras
+        ordenadas por semana epidemiológica.
+        """
+        corte = int(round(len(X) * (1 - self.test_size)))
+        corte = max(1, min(corte, len(X) - 1))
+        return X[:corte], X[corte:], y[:corte], y[corte:]
+
+    def _baseline_prediction(self, X_test: np.ndarray, meta: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+        """Previsão da linha de base, escolhida conforme a origem dos dados."""
+        baseline = meta.get("baseline") or {}
+        if baseline.get("tipo") == "persistencia":
+            coluna = baseline.get("coluna", "nivel")
+            limiar = float(baseline.get("limiar", 3))
+            idx = list(meta.get("variaveis", [])).index(coluna)
+            atual = X_test[:, idx]
+            return (atual >= limiar).astype(int), atual
+        return (X_test[:, 0] > 0).astype(int), X_test[:, 0]
 
     # -------------------------------------------------------------- artifacts
     def _save_figures(self, result: ExperimentResult) -> list[str]:

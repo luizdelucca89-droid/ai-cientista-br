@@ -41,6 +41,14 @@ def main() -> int:
     print(f"Artigos.........: {len(phases['evidencias'].get('artigos', []))}")
     print(f"Hipóteses.......: {len(phases['planejamento'].get('hipoteses', []))}")
     print(f"Melhor modelo...: {phases['experimento']['resultado'].get('best_model')}")
+    dataset = phases["experimento"]["resultado"].get("dataset") or {}
+    if dataset:
+        print(f"Dados...........: {dataset.get('tipo')} (n={dataset.get('n_amostras')})")
+        print(f"Origem..........: {dataset.get('origem')}")
+    fidelidade = phases["validacao"].get("fidelidade_numerica") or {}
+    if fidelidade:
+        estado = "ok" if fidelidade.get("ok") else fidelidade.get("numeros_sem_suporte")
+        print(f"Fidelidade num..: {estado}")
     print(f"Score validação.: {phases['validacao'].get('score')}")
     print(f"Paper (ABNT)....: {phases['artefatos'].get('final_paper')}")
     return 0

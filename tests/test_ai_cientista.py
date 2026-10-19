@@ -24,13 +24,19 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.config import Config  # noqa: E402
-from core.experiments import ExperimentRunner, generate_synthetic_dataset  # noqa: E402
+from core.experiments import (  # noqa: E402
+    ExperimentRunner,
+    build_dengue_outbreak_dataset,
+    build_real_dataset,
+    generate_synthetic_dataset,
+)
 from core.memory import MemorySystem  # noqa: E402
 from core.orchestrator import Orchestrator  # noqa: E402
 from core.paper import ABNTFormatter  # noqa: E402
@@ -94,9 +100,13 @@ def test_synthetic_dataset_is_reproducible():
 
 
 def test_experiment_runner_produces_real_metrics(tmp_path):
+    # Tópico sem fonte pública de observações: exercita o caminho sintético de
+    # forma offline e determinística. O caminho real tem teste próprio, marcado
+    # como network.
     runner = ExperimentRunner(seed=7, output_dir=tmp_path)
-    result = runner.run("dengue", {"id": "H1", "enunciado": "ML > baseline"})
+    result = runner.run("previsao de churn em telecomunicacoes", {"id": "H1", "enunciado": "ML > baseline"})
 
+    assert result.dataset["tipo"] != "dados_reais"
     assert set(result.metrics) == {
         "baseline_estatistico",
         "regressao_logistica",
@@ -319,6 +329,135 @@ def test_crossref_returns_real_articles():
     assert len(articles) >= 1
     assert articles[0]["titulo"]
     assert articles[0]["fonte"] == "crossref"
+
+
+@pytest.mark.network
+def test_build_dengue_dataset_uses_real_observations():
+    """O dataset de dengue vem do InfoDengue, com observações reais.
+
+    Verifica a proveniência (não sintético), o formato da matriz e o alvo
+    binário, além do baseline de persistência declarado nos metadados.
+    """
+    dataset = build_dengue_outbreak_dataset(
+        cidades={3304557: "Rio de Janeiro", 3106200: "Belo Horizonte"},
+        anos=(2023,),
+    )
+    if dataset is None:
+        pytest.skip("InfoDengue indisponível neste ambiente")
+
+    assert dataset.meta["tipo"] == "dados_reais"
+    assert "InfoDengue" in dataset.meta["origem"]
+    assert dataset.X.shape[0] == dataset.y.shape[0] >= 50
+    assert dataset.X.shape[1] == len(dataset.meta["variaveis"])
+    assert set(np.unique(dataset.y)).issubset({0, 1})
+    assert dataset.meta["balanceamento"]["positivos"] == int(dataset.y.sum())
+    assert dataset.meta["baseline"]["tipo"] == "persistencia"
+    assert dataset.meta["split"] == "temporal"
+
+
+@pytest.mark.network
+def test_runner_uses_real_dataset_and_temporal_split(tmp_path):
+    """O runner, com tópico de dengue, treina sobre dados observados.
+
+    O corte é temporal (sem futuro no treino) e o baseline é a persistência do
+    nível de alerta — não a regra sintética.
+    """
+    runner = ExperimentRunner(seed=7, output_dir=tmp_path)
+    result = runner.run("Predição de surtos de dengue usando dados climáticos", {"id": "H1"})
+
+    assert result.dataset["tipo"] == "dados_reais"
+    assert result.dataset["split"] == "temporal"
+    assert result.dataset["baseline"]["tipo"] == "persistencia"
+    for name, metrics in result.metrics.items():
+        assert 0.0 <= metrics["f1_score"] <= 1.0, name
+    assert result.best_model in result.metrics
+
+
+def test_real_dataset_selection_by_topic():
+    """Tópicos fora da dengue não têm fonte real e caem no caminho sintético."""
+    assert build_real_dataset("previsao de churn em telecom") is None
+    assert build_real_dataset("") is None
+
+
+def test_detector_pega_numero_sem_lastro_nos_dados():
+    """Um dígito trocado numa afirmação sobre dados reais é detectado.
+
+    Caso real: o manuscrito afirmou intervalo de semanas "200201 a 202351",
+    quando o InfoDengue devolveu 202201. O validador por LLM não percebeu.
+    """
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    resultado = {
+        "dataset": {"intervalo_semanas": {"inicio": 202201, "fim": 202351}, "n_amostras": 817},
+        "metrics": {"floresta_aleatoria": {"f1_score": 0.8989}},
+    }
+    fontes = collect_numbers(resultado)
+
+    manuscrito = "As semanas foram de 200201 a 202351, com N = 817 amostras e F1 = 0,8989."
+    suspeitos = find_unsupported_numbers(manuscrito, fontes)
+    assert 200201.0 in suspeitos
+    assert 202351.0 not in suspeitos
+    assert 817.0 not in suspeitos
+    assert 0.8989 not in suspeitos
+
+
+def test_detector_ignora_numeracao_estrutural_e_valores_arredondados():
+    """Numeração de seção e arredondamento legítimo não geram falso positivo."""
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    fontes = collect_numbers({"metricas": {"f1_score": 0.89891, "alpha": 0.05}})
+    # "2." e "3." são numeração de seção; "0,899" é arredondamento de 0,89891.
+    manuscrito = "2. METODOLOGIA\n3. RESULTADOS\nF1 = 0,899 e alpha = 0,05."
+    assert find_unsupported_numbers(manuscrito, fontes) == []
+
+
+def test_detector_ignora_numeracao_de_subsecao_e_versoes():
+    """Títulos numerados e versões de software não são afirmações sobre dados.
+
+    O LLM escreve "### 3.1. Amostragem" e "Python 3.13.15"; sem podar isso, o
+    conferidor acusava 3.1-3.4 e 3.13.15 como números sem lastro.
+    """
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    fontes = collect_numbers({"n_amostras": 817})
+    manuscrito = (
+        "## 3 RESULTADOS E DISCUSSÃO\n"
+        "### 3.1. Desempenho dos Modelos\n"
+        "### 3.2. Análise Estatística\n"
+        "### 3.3. Comparação com a Literatura\n"
+        "### 3.4. Limitações\n"
+        "Executado em Python 3.13.15, com N = 817 amostras. Ver Seção 3.2 e Tabela 2.1.\n"
+    )
+    assert find_unsupported_numbers(manuscrito, fontes) == []
+
+
+def test_detector_extrai_numeros_de_estrutura_aninhada():
+    from core.review.numeros import collect_numbers
+
+    numeros = collect_numbers({"a": [1, "2.5", {"b": "x=3,7"}]})
+    assert {1.0, 2.5, 3.7}.issubset(numeros)
+
+
+def test_temporal_split_keeps_order():
+    """O corte temporal preserva a ordem cronológica das amostras."""
+    X = np.arange(20).reshape(10, 2).astype(float)
+    y = np.arange(10)
+    runner = ExperimentRunner(test_size=0.3)
+    X_train, X_test, y_train, y_test = runner._split_temporal(X, y)
+    assert len(X_train) == 7 and len(X_test) == 3
+    assert X_train[-1, 0] < X_test[0, 0]
+    assert list(y_train) == [0, 1, 2, 3, 4, 5, 6]
+    assert list(y_test) == [7, 8, 9]
+
+
+def test_persistence_baseline_flags_current_alert_level():
+    """O baseline de persistência usa o nível atual da semana t."""
+    meta = {"baseline": {"tipo": "persistencia", "coluna": "nivel", "limiar": 3}, "variaveis": ["temp", "nivel"]}
+    X_test = np.array([[25.0, 1.0], [26.0, 3.0], [27.0, 4.0]])
+    runner = ExperimentRunner()
+    y_pred, score = runner._baseline_prediction(X_test, meta)
+    assert list(y_pred) == [0, 1, 1]
+    assert list(score) == [1.0, 3.0, 4.0]
 
 
 @pytest.mark.network

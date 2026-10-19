@@ -112,6 +112,25 @@ def _clean_markup(raw: str | None, limit: int = 600) -> str:
     return truncate(text, limit, suffix="")
 
 
+def _para_float(valor: Any) -> float | None:
+    """Converte um valor da API para ``float``; devolve ``None`` se não numérico.
+
+    As APIs brasileiras alternam entre número JSON e string numérica, e usam
+    ``None``/``""`` para semanas sem medição. Sem normalizar, a montagem do
+    dataset real quebra em ``float(None)``.
+    """
+    if valor is None:
+        return None
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 # --------------------------------------------------------------------------- #
 # Crossref
 # --------------------------------------------------------------------------- #
@@ -422,6 +441,91 @@ class IBGEAPI(BaseAPI):
         for estado in estados:
             estado["populacao_estimada"] = populacao.get(estado["nome"])
         return {"unidades_federacao": estados, "total_ufs_disponiveis": len(todos)}
+
+
+# --------------------------------------------------------------------------- #
+# InfoDengue (Fiocruz/FGV) — vigilância de arboviroses com clima acoplado
+# --------------------------------------------------------------------------- #
+@dataclass
+class InfoDengueAPI(BaseAPI):
+    """Semanas epidemiológicas do InfoDengue, com clima real acoplado.
+
+    O InfoDengue (Fiocruz + FGV) publica, por município e semana epidemiológica,
+    os casos notificados/estimados de dengue e as variáveis climáticas que
+    entraram no modelo de nowcasting (temperatura e umidade médias). Isso permite
+    um experimento **com dados observados**, sem gerador sintético: as features
+    são medições reais e o alvo é o nível de alerta da semana seguinte.
+    """
+
+    base_url: str = "https://info.dengue.mat.br/api"
+    name: str = "infodengue"
+
+    CIDADES = {
+        3304557: "Rio de Janeiro",
+        3550308: "São Paulo",
+        3106200: "Belo Horizonte",
+        4106902: "Curitiba",
+        5208707: "Goiânia",
+        2927408: "Salvador",
+        1302603: "Manaus",
+        2611606: "Recife",
+    }
+
+    # Campos numéricos que o endpoint devolve e que usamos como features.
+    CAMPOS_NUMERICOS = (
+        "tempmed",
+        "umidmed",
+        "casos",
+        "casos_est",
+        "p_inc100k",
+        "Rt",
+        "nivel",
+        "nivel_inc",
+    )
+
+    def semanas(self, geocode: int, ano: int, ew_inicio: int = 1, ew_fim: int = 52) -> list[dict[str, Any]]:
+        """Semanas epidemiológicas de um município em um ano, ordenadas por SE."""
+        data = self.get_json(
+            f"{self.base_url}/alertcity",
+            {
+                "geocode": geocode,
+                "disease": "dengue",
+                "format": "json",
+                "ew_start": ew_inicio,
+                "ew_end": ew_fim,
+                "ey_start": ano,
+                "ey_end": ano,
+            },
+        )
+        if not data:
+            return []
+        return sorted(data, key=lambda x: x.get("SE", 0))
+
+    def coletar(
+        self,
+        municipios: dict[int, str] | None = None,
+        anos: tuple[int, ...] = (2022, 2023),
+    ) -> list[dict[str, Any]]:
+        """Séries semanais de vários municípios e anos, em ordem cronológica.
+
+        Cada item traz ``municipio``/``geocode``/``SE`` e os campos numéricos
+        convertidos para ``float`` (``None`` quando a fonte não publica o valor).
+        """
+        alvos = municipios or self.CIDADES
+        registros: list[dict[str, Any]] = []
+        for geocode, nome in alvos.items():
+            for ano in anos:
+                for semana in self.semanas(geocode, ano):
+                    item: dict[str, Any] = {
+                        "geocode": geocode,
+                        "municipio": nome,
+                        "SE": semana.get("SE"),
+                        "ano": ano,
+                    }
+                    for campo in self.CAMPOS_NUMERICOS:
+                        item[campo] = _para_float(semana.get(campo))
+                    registros.append(item)
+        return registros
 
 
 # --------------------------------------------------------------------------- #

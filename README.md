@@ -21,7 +21,8 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 | Métricas no artigo | **Reais.** Os números vêm da execução, nunca de texto gerado. |
 | Revisão por pares | **Real.** Painel de 5 revisores independentes com meta-revisor e voto majoritário ordinal. |
 | Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
-| Base experimental | **Sintética e reprodutível** (seed fixa), inspirada em séries públicas brasileiras. Não é uma base oficial. |
+| Base experimental | **Real quando existe fonte pública.** Para temas com dados abertos brasileiros, o sistema baixa observações reais (ex.: InfoDengue/Fiocruz para dengue) e usa corte temporal com linha de base de persistência. Sem fonte disponível, cai numa base sintética reprodutível (seed fixa), e os metadados marcam `tipo: sintetica`. |
+| Fidelidade numérica | **Real.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito contra os dados produzidos e reporta os que não têm lastro. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
 | dados.gov.br | Exige token de API; por isso o contexto de dados abertos usa IBGE/SIDRA, que é público. |
@@ -228,10 +229,11 @@ core/
   agents/                   planejador, experimentalista, revisor,
                             redator, validador, integrador de dados
   review/                   Painel de N revisores + meta-revisor
-  experiments/              Execução real + estatística (scipy, sklearn)
+                            fidelidade numérica (numeros.py)
+  experiments/              Datasets reais (InfoDengue) + execução e estatística
   paper/                    Formatação ABNT + PDF + LaTeX
 integrations/               Crossref, SciELO, OpenAlex, Banco Central,
-                            IBGE, Lattes
+                            IBGE, InfoDengue, Lattes
 llm_providers/              mock, openai_compatible, selenium (bypass/)
 examples/                   Três ciclos completos executáveis
 tests/                      Suíte pytest (offline + marcados como network)
