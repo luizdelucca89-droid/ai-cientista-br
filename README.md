@@ -196,7 +196,7 @@ Limites e condições mudam rápido; confira antes de confiar.
 
 | Provedor | Cartão? | Limite gratuito | Observação |
 |---|---|---|---|
-| **Google AI Studio** | não | ~1.500 req/dia, 250 mil TPM | Melhor volume diário. Modelos `flash`/`flash-lite`; os `pro` saíram do gratuito em abr/2026. |
+| **Google AI Studio** | não | ~1.500 req/dia, 250 mil TPM | Melhor volume diário. Use `gemini-3.5-flash-lite`; `gemini-2.5-flash-lite` já foi retirado. Modelos `pro` saíram do gratuito em abr/2026. |
 | **Groq** | não | 8 mil TPM, 200 mil TPD | Rápido, mas estoura o dia em ~3 ciclos. |
 | **Mistral** | não | ~1 req/s, ~1 bi tokens/mês | Não publica os números; veja o Admin Console. Uso não comercial. |
 | **OpenRouter** | não | 50 req/dia (`:free`) | 1.000 req/dia após US$ 10 uma vez. |
