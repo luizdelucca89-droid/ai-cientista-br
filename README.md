@@ -142,16 +142,28 @@ Configure em `config.json` (ou por variáveis de ambiente).
 | `selenium` | sessão autenticada | Automação de interfaces web. Desativado por padrão; respeite os ToS. |
 
 ```bash
-# Exemplo com Groq
+# Exemplo com Groq (tier gratuito)
+export OPENAI_BASE_URL="https://api.groq.com/openai/v1"
 export OPENAI_API_KEY="sua-chave"
-python main.py --topic "..." --provider openai_compatible
+python main.py --topic "..." --provider openai_compatible --model openai/gpt-oss-120b
 ```
 
 Variáveis de ambiente aceitas: `AI_CIENTISTA_PROVIDER`, `AI_CIENTISTA_MODEL`,
 `OPENAI_BASE_URL`, `AI_CIENTISTA_OUTPUT_DIR`, `AI_CIENTISTA_SEED`.
 
 O cliente aplica cache em SQLite e uma cadeia de fallback: se o provider
-principal falhar, o ciclo continua com o próximo da lista.
+principal falhar, o ciclo continua com o próximo da lista. O resumo final mostra
+quantas chamadas foram para cada provider e avisa quando parte delas caiu no
+`mock`, para que o texto gerado não seja atribuído ao modelo errado por engano.
+
+### Limites de uso
+
+Tiers gratuitos impõem teto de tokens por minuto (a Groq, por exemplo, 8000 TPM
+no `on_demand`). O cliente respeita o tempo sugerido pela API em HTTP 429 e
+tenta de novo antes de cair para o `mock`, mas uma execução completa consome
+~60 mil tokens e pode levar alguns minutos. Para reduzir o consumo, use
+`--model` com um modelo menor ou rode com `--provider mock` para validar o
+pipeline.
 
 ---
 

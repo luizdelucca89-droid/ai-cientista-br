@@ -28,6 +28,10 @@ from core.utils import ensure_dir, sha256_text, setup_logger, utcnow_iso
 
 logger = setup_logger(__name__)
 
+# Alguns gateways (Cloudflare, na frente da Groq) bloqueiam clientes sem
+# User-Agent de navegador com o erro 1010.
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 
 # --------------------------------------------------------------------------- #
 # Interface
@@ -413,6 +417,9 @@ class OpenAICompatibleProvider:
 
     def __post_init__(self) -> None:
         self.api_key = self.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AI_CIENTISTA_API_KEY")
+        # OPENAI_BASE_URL é tratada por core.config.ENV_OVERRIDES, que a mapeia
+        # para ``llm.base_url``. Ler a variável aqui de novo inverteria a
+        # precedência e sobrescreveria um base_url passado explicitamente.
         self.base_url = self.base_url.rstrip("/")
 
     def available(self) -> bool:
@@ -437,6 +444,9 @@ class OpenAICompatibleProvider:
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
+                # Sem um User-Agent explícito o Cloudflare da Groq responde 1010
+                # ("browser signature") e bloqueia o cliente urllib.
+                "User-Agent": USER_AGENT,
             },
             method="POST",
         )
@@ -525,9 +535,19 @@ class LLMClient:
         if self._lock is None:
             self._lock = threading.Lock()
 
+    def _signature(self) -> str:
+        """Identifica a cadeia de providers para compor a chave de cache.
+
+        Sem isto, uma resposta do ``mock`` já em cache seria devolvida numa
+        execução com um LLM real, mascarando completamente o provider escolhido.
+        """
+        return ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
+
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
         temperature = float(kwargs.pop("temperature", self.temperature))
-        key = sha256_text(f"{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}")
+        key = sha256_text(
+            f"{self._signature()}||{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}"
+        )
         if self.cache:
             hit = self.cache.get(key)
             if hit:
@@ -551,10 +571,28 @@ class LLMClient:
                 except Exception as exc:  # noqa: BLE001 - fallback deliberado
                     errors.append(f"{provider.name} (tentativa {attempt + 1}): {exc}")
                     logger.warning("Provider %s falhou: %s", provider.name, exc)
-                    time.sleep(min(2 ** attempt * 0.5, 4))
+                    if attempt < self.retries:
+                        time.sleep(self._backoff(exc, attempt))
         message = "; ".join(errors) or "nenhum provider configurado"
         logger.error("Todos os providers falharam: %s", message)
         raise RuntimeError(f"Falha em todos os providers de LLM: {message}")
+
+    @staticmethod
+    def _backoff(exc: Exception, attempt: int) -> float:
+        """Calcula a espera antes da próxima tentativa.
+
+        Em HTTP 429 a API informa quanto esperar ("try again in 27.6s"); ignorar
+        isso esgota as tentativas e derruba o pipeline para o provider mock sem
+        que o usuário perceba. Respeitamos o valor sugerido, com um teto para não
+        travar indefinidamente.
+        """
+        message = str(exc)
+        if "429" in message or "rate limit" in message.lower():
+            match = re.search(r"try again in ([0-9.]+)s", message, flags=re.IGNORECASE)
+            if match:
+                return min(float(match.group(1)) + 1.0, 65.0)
+            return min(20.0 * (attempt + 1), 65.0)
+        return min(2 ** attempt * 0.5, 8.0)
 
     def _record(self, prompt: str, text: str, provider: str, cached: bool, latency: float) -> None:
         entry = {

@@ -467,6 +467,62 @@ def test_latex_formatter_escapes_and_structures():
     assert "\\section{Introdução}" in tex
 
 
+def test_latex_escapes_unicode_from_real_llms():
+    """LLMs reais emitem espaços/hífens tipográficos, gregas e subscritos.
+
+    Esses caracteres não são mapeados por inputenc+fontenc e abortavam o
+    pdflatex, fazendo o ciclo terminar sem paper_latex.pdf.
+    """
+    from core.paper import LaTeXFormatter
+
+    escapar = LaTeXFormatter._escape
+    # Espaços e hífens tipográficos viram equivalentes ASCII.
+    assert escapar("seed\u202f=\u202f42") == "seed = 42"
+    assert escapar("dados\xa0abertos") == "dados abertos"
+    assert escapar("co\u2011ocorrência") == "co-ocorrência"
+    assert escapar("aspas \u201cx\u201d e\u2026") == "aspas ``x'' e\\ldots{}"
+    # Gregas e sub/sobrescritos viram comandos matemáticos.
+    assert escapar("\u03b1") == "$\\alpha$"
+    assert escapar("\u0394SOC") == "$\\Delta$SOC"
+    assert escapar("N\u2082O e CO\u2082") == "N$_2$O e CO$_2$"
+    assert escapar("km\u00b2") == "km$^2$"
+    # Símbolos fora do alcance do LaTeX são descartados, sem deixar lixo.
+    assert escapar("emoji \U0001f680 fim") == "emoji  fim"
+    # Acentuação normal é preservada.
+    assert escapar("acentuação ç ã é") == "acentuação ç ã é"
+
+
+def test_llm_cache_key_depends_on_provider():
+    """A chave de cache precisa incluir o provider.
+
+    Sem isso, uma resposta do mock já em cache era devolvida numa execução com
+    LLM real, mascarando o provider escolhido pelo usuário.
+    """
+    from llm_providers import LLMClient, MockProvider, OpenAICompatibleProvider
+
+    mock = LLMClient(providers=[MockProvider()])
+    real = LLMClient(providers=[OpenAICompatibleProvider(model="openai/gpt-oss-120b", api_key="x")])
+    assert mock._signature() != real._signature()
+    assert "mock" in mock._signature()
+    assert "openai/gpt-oss-120b" in real._signature()
+
+
+def test_llm_backoff_honors_rate_limit_hint():
+    """Em HTTP 429, espera o tempo sugerido pela API em vez de um backoff curto.
+
+    Ignorar o "try again in Ns" esgotava as tentativas e derrubava o pipeline
+    para o provider mock sem aviso.
+    """
+    from llm_providers import LLMClient
+
+    erro = Exception('HTTP 429: {"error":{"message":"Rate limit reached ... try again in 27.66s."}}')
+    espera = LLMClient._backoff(erro, attempt=0)
+    assert 28.0 <= espera <= 29.0, espera
+    # Sem a dica, usa um backoff progressivo, mas limitado.
+    assert LLMClient._backoff(Exception("HTTP 500"), attempt=0) == 0.5
+    assert LLMClient._backoff(Exception("HTTP 500"), attempt=5) <= 8.0
+
+
 def test_latex_compile_produces_distinct_pdf(tmp_path):
     """Com pdflatex presente, o PDF do LaTeX é separado e não sobrescreve o ABNT."""
     from core.paper import LaTeXFormatter

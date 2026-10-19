@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", "-c", default=None, help="Caminho de um config.json alternativo.")
     parser.add_argument("--output-dir", "-o", default=None, help="Diretório de saída.")
     parser.add_argument("--provider", default=None, choices=["mock", "openai_compatible", "selenium"], help="Provider de LLM.")
+    parser.add_argument("--model", default=None, help="Modelo do provider (ex.: openai/gpt-oss-120b, qwen/qwen3.8-27b, llama3.1).")
+    parser.add_argument("--base-url", default=None, help="URL base compatível com a API da OpenAI (ex.: https://api.groq.com/openai/v1).")
     parser.add_argument("--force", action="store_true", help="Repetir mesmo que o tópico já exista na memória.")
     parser.add_argument("--collect-only", action="store_true", help="Apenas coletar evidências abertas.")
     parser.add_argument("--doctor", action="store_true", help="Diagnosticar o ambiente e sair (sem executar o pipeline).")
@@ -70,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.provider:
         config.data.setdefault("llm", {})["provider"] = args.provider
         config.data["llm"]["fallback_order"] = [args.provider, "mock"] if args.provider != "mock" else ["mock"]
+    if args.model:
+        config.data.setdefault("llm", {})["model"] = args.model
+    if args.base_url:
+        config.data.setdefault("llm", {})["base_url"] = args.base_url
 
     if args.doctor:
         from core.doctor import Doctor, render
@@ -148,6 +154,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Painel de revisão: {decisao} (consenso={consenso})")
     print(f"Paper: {phases['artefatos'].get('final_paper')}")
     print(f"Diretório do ciclo: {phases['artefatos'].get('diretorio')}")
+
+    llm_stats = phases.get("metricas_llm") or {}
+    by_provider = llm_stats.get("por_provider") or {}
+    if by_provider:
+        used = ", ".join(f"{name}={count}" for name, count in by_provider.items())
+        print(f"Chamadas de LLM: {used}")
+        if args.provider and args.provider != "mock" and by_provider.get("mock"):
+            print(
+                f"AVISO: {by_provider['mock']} de {llm_stats.get('chamadas')} chamadas caíram no provider "
+                f"mock (o provider '{args.provider}' falhou ou atingiu rate limit). "
+                "O texto do artigo NÃO foi gerado pelo modelo escolhido."
+            )
     return 0 if result["status"] == "concluido" else 1
 
 

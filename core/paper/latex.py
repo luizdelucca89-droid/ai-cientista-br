@@ -216,9 +216,57 @@ class LaTeXFormatter:
 
     @staticmethod
     def _escape(text: str) -> str:
-        """Escapa caracteres reservados do LaTeX preservando acentuação UTF-8."""
+        """Escapa caracteres reservados do LaTeX preservando acentuação UTF-8.
+
+        LLMs reais emitem espaços e hífens "tipográficos" (U+202F, U+00A0,
+        U+2011) e letras gregas que o ``inputenc``/``fontenc`` não mapeia, e que
+        abortam o ``pdflatex``. Esses casos viram equivalentes ASCII ou comandos
+        em modo matemático. Os comandos gerados aqui são inseridos por
+        placeholder para não serem re-escapados na etapa seguinte.
+        """
         if not text:
             return ""
+        placeholders: dict[str, str] = {}
+
+        def stash(latex: str) -> str:
+            key = f"\x00{len(placeholders)}\x00"
+            placeholders[key] = latex
+            return key
+
+        typography = {
+            "\u00a0": " ",   # NBSP
+            "\u202f": " ",   # narrow no-break space
+            "\u2009": " ",   # thin space
+            "\u200b": "",    # zero-width space
+            "\u2011": "-",   # non-breaking hyphen
+            "\u2012": "-",
+            "\u2013": "--",
+            "\u2014": "---",
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u201c": "``",
+            "\u201d": "''",
+            "\u2026": stash(r"\ldots{}"),
+        }
+        greek = {
+            "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "epsilon",
+            "θ": "theta", "λ": "lambda", "μ": "mu", "π": "pi", "ρ": "rho",
+            "σ": "sigma", "τ": "tau", "φ": "phi", "χ": "chi", "ψ": "psi", "ω": "omega",
+            "Δ": "Delta", "Σ": "Sigma", "Ω": "Omega", "Γ": "Gamma", "Λ": "Lambda", "Π": "Pi",
+        }
+        for char, name in greek.items():
+            typography[char] = stash(f"${'\\' + name}$")
+
+        # Sub/sobrescritos Unicode (ex.: CO₂, km²) usados pelo LLM em unidades.
+        subscript = "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
+        superscript = "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+        for index, char in enumerate(subscript):
+            typography[char] = stash(f"$_{'0123456789+-=()'[index]}$")
+        for index, char in enumerate(superscript):
+            typography[char] = stash(f"$^{'0123456789+-=()'[index]}$")
+
+        text = "".join(typography.get(ch, ch) for ch in text)
+
         replacements = {
             "\\": r"\textbackslash{}",
             "&": r"\&",
@@ -232,5 +280,17 @@ class LaTeXFormatter:
             "^": r"\textasciicircum{}",
         }
         text = "".join(replacements.get(ch, ch) for ch in text)
+
+        # Rede de seguranca: o conjunto inputenc+fontenc so cobre ASCII,
+        # Latin-1 e Latin Extended-A. Qualquer outro simbolo (emoji, setas,
+        # caracteres de controle vindos do LLM) abortaria o pdflatex, entao e
+        # descartado. Os placeholders usam \x00 e passam intactos.
+        text = "".join(
+            ch for ch in text
+            if ch == "\x00" or ord(ch) < 0x0180
+        )
+
+        for key, latex in placeholders.items():
+            text = text.replace(key, latex)
         text = re.sub(r"\n{2,}", "\n\n", text)
         return text
