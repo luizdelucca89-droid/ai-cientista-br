@@ -158,12 +158,59 @@ quantas chamadas foram para cada provider e avisa quando parte delas caiu no
 
 ### Limites de uso
 
-Tiers gratuitos impõem teto de tokens por minuto (a Groq, por exemplo, 8000 TPM
-no `on_demand`). O cliente respeita o tempo sugerido pela API em HTTP 429 e
-tenta de novo antes de cair para o `mock`, mas uma execução completa consome
-~60 mil tokens e pode levar alguns minutos. Para reduzir o consumo, use
-`--model` com um modelo menor ou rode com `--provider mock` para validar o
-pipeline.
+Tiers gratuitos impõem teto de tokens por minuto (TPM) **e por dia** (TPD). A
+Groq, por exemplo, permite 8.000 TPM e 200.000 TPD no `on_demand`: um ciclo
+completo consome ~60 mil tokens, então três execuções já esgotam o dia.
+
+O cliente trata isso em camadas:
+
+1. Respeita o tempo sugerido pela API em HTTP 429 (`try again in 27.66s` e
+   também `try again in 26m16s`).
+2. Se a espera pedida passa de 30s, **desiste do provider e passa ao próximo**
+   da cadeia, em vez de insistir num provedor que só volta horas depois.
+3. Só então recorre ao `mock`, e o resumo final avisa quantas chamadas caíram
+   nele.
+
+### Empilhando tiers gratuitos
+
+Um único tier não sustenta um ciclo inteiro. Configure vários provedores em
+`llm.providers` — cada um com a sua variável de chave, de modo que uma não
+sobrescreva a outra — e o cliente usa a cadeia como failover. Veja
+`config.free-stack.json`:
+
+```bash
+export GEMINI_API_KEY="..."      # 1.500 req/dia, 250 mil TPM
+export GROQ_API_KEY="..."        # 8 mil TPM, 200 mil TPD
+export MISTRAL_API_KEY="..."     # ~1 req/s, ~1 bi tokens/mês
+export OPENROUTER_API_KEY="..."  # 50 req/dia (1.000 após US$ 10)
+
+python main.py --config config.free-stack.json --topic "..." --force
+```
+
+Um `--config` parcial é combinado com o `config.json` (merge profundo), então
+você não precisa repetir as integrações nem os caminhos.
+
+### Quais tiers realmente funcionam
+
+Limites e condições mudam rápido; confira antes de confiar.
+
+| Provedor | Cartão? | Limite gratuito | Observação |
+|---|---|---|---|
+| **Google AI Studio** | não | ~1.500 req/dia, 250 mil TPM | Melhor volume diário. Modelos `flash`/`flash-lite`; os `pro` saíram do gratuito em abr/2026. |
+| **Groq** | não | 8 mil TPM, 200 mil TPD | Rápido, mas estoura o dia em ~3 ciclos. |
+| **Mistral** | não | ~1 req/s, ~1 bi tokens/mês | Não publica os números; veja o Admin Console. Uso não comercial. |
+| **OpenRouter** | não | 50 req/dia (`:free`) | 1.000 req/dia após US$ 10 uma vez. |
+| **GitHub Models** | — | **aposentado** | Encerrado em 30/jul/2026. |
+| **Cerebras** | **sim** | US$ 5, expira em 30 dias | O tier permanente acabou em set/2026. |
+
+Recomendação prática: empilhe **Gemini → Groq → Mistral → OpenRouter → mock**.
+Com dois ou três desses ativos, o ciclo raramente chega ao `mock`.
+
+**Sobre privacidade:** nos tiers gratuitos, Google e Mistral podem usar seus
+prompts para treinar. Para pesquisa com dados sensíveis, use um modelo local
+(Ollama, vLLM) apontando `base_url` para `http://localhost:11434/v1`.
+
+Para validar o pipeline sem gastar cota, use `--provider mock`.
 
 ---
 

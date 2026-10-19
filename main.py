@@ -160,11 +160,20 @@ def main(argv: list[str] | None = None) -> int:
     if by_provider:
         used = ", ".join(f"{name}={count}" for name, count in by_provider.items())
         print(f"Chamadas de LLM: {used}")
-        if args.provider and args.provider != "mock" and by_provider.get("mock"):
+        configurados = [p for p in llm_stats.get("providers_configurados", []) if p != "mock"]
+        if by_provider.get("mock") and configurados:
+            falhas = llm_stats.get("falhas_por_provider") or {}
+            detalhe = ", ".join(f"{p} ({falhas[p]} falhas)" for p in configurados if p in falhas)
             print(
                 f"AVISO: {by_provider['mock']} de {llm_stats.get('chamadas')} chamadas caíram no provider "
-                f"mock (o provider '{args.provider}' falhou ou atingiu rate limit). "
-                "O texto do artigo NÃO foi gerado pelo modelo escolhido."
+                f"mock. Providers reais configurados: {', '.join(configurados)}"
+                + (f" — {detalhe}" if detalhe else "")
+                + ". O texto do artigo NÃO foi gerado pelo modelo escolhido."
+            )
+        elif by_provider.get("mock") and not configurados:
+            print(
+                "AVISO: todas as chamadas usaram o provider mock; nenhum LLM real foi configurado "
+                "ou nenhuma chave estava disponível. O texto é estrutural, não científico."
             )
     return 0 if result["status"] == "concluido" else 1
 

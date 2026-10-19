@@ -26,6 +26,22 @@ ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Combina ``override`` sobre ``base`` preservando chaves não citadas.
+
+    Um config alternativo (``--config``) costuma trazer só a seção ``llm``. Sem
+    o merge, um arquivo parcial desativaria silenciosamente as integrações e os
+    caminhos definidos no config padrão. Listas são substituídas, não somadas.
+    """
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 @dataclass
 class Config:
     """Configuração efetiva do sistema, já com overrides aplicados."""
@@ -36,12 +52,17 @@ class Config:
     # ------------------------------------------------------------------ load
     @classmethod
     def load(cls, path: str | os.PathLike[str] | None = None) -> "Config":
-        cfg_path = Path(path) if path else DEFAULT_CONFIG_PATH
-        data = read_json(cfg_path, default=None)
-        if data is None:
-            data = read_json(DEFAULT_CONFIG_PATH, default={}) or {}
-            cfg_path = DEFAULT_CONFIG_PATH if cfg_path.exists() else None
-        config = cls(data=dict(data), source=cfg_path)
+        defaults = read_json(DEFAULT_CONFIG_PATH, default={}) or {}
+        cfg_path: Path | None = DEFAULT_CONFIG_PATH
+        data: dict[str, Any] = dict(defaults)
+        if path:
+            cfg_path = Path(path)
+            override = read_json(cfg_path, default=None)
+            if override is None:
+                cfg_path = DEFAULT_CONFIG_PATH if DEFAULT_CONFIG_PATH.exists() else None
+            else:
+                data = _deep_merge(defaults, override)
+        config = cls(data=data, source=cfg_path)
         config._apply_env_overrides()
         return config
 

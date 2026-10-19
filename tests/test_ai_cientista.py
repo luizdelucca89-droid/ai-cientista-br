@@ -523,6 +523,122 @@ def test_llm_backoff_honors_rate_limit_hint():
     assert LLMClient._backoff(Exception("HTTP 500"), attempt=5) <= 8.0
 
 
+def test_free_stack_providers_use_isolated_keys(monkeypatch):
+    """Cada provider da pilha lê a sua própria variável de chave.
+
+    Sem isso, uma unica OPENAI_API_KEY deixaria todos os providers "disponiveis"
+    e o cliente tentaria provedores sem chave, gastando tentativas em 401.
+    """
+    import llm_providers
+    from core.config import Config
+
+    monkeypatch.setenv("GROQ_API_KEY", "chave-groq")
+    monkeypatch.setenv("OPENAI_API_KEY", "chave-generica")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    config = Config.load("config.free-stack.json")
+    client = llm_providers.build_llm_client(config.data, use_cache=False)
+    disponiveis = {p.name for p in client.providers if p.available()}
+    assert disponiveis == {"groq", "mock"}, disponiveis
+    groq = next(p for p in client.providers if p.name == "groq")
+    assert groq.api_key == "chave-groq"
+    assert groq.base_url == "https://api.groq.com/openai/v1"
+
+
+def test_config_merge_preserves_untouched_sections(tmp_path):
+    """Um --config parcial nao pode desativar integracoes nem caminhos.
+
+    Antes, carregar um arquivo com so a secao ``llm`` substituia a
+    configuracao inteira e as APIs brasileiras ficavam silenciosamente vazias.
+    """
+    import json as _json
+    from core.config import Config
+
+    parcial = tmp_path / "parcial.json"
+    parcial.write_text(_json.dumps({"llm": {"temperature": 0.9}}), encoding="utf-8")
+    config = Config.load(parcial)
+    assert config.data["llm"]["temperature"] == 0.9
+    assert "integrations" in config.data and config.data["integrations"]
+    assert "paths" in config.data
+    assert config.data["integrations"]["crossref"]["base_url"].startswith("https://")
+
+
+def test_long_rate_limit_skips_provider_instead_of_waiting(monkeypatch):
+    """Um 429 que pede espera longa nao deve prender o ciclo.
+
+    A Groq, ao esgotar o teto diario, responde "try again in 26m". Esperar esse
+    tempo (ou repetir o provider com backoff curto) travava o ciclo por horas.
+    O cliente deve desistir deste provider e passar ao proximo da cadeia.
+    """
+    import llm_providers
+    from llm_providers import LLMClient
+
+    esperas: list[float] = []
+
+    class ProviderQuebrado:
+        name = "quebrado"
+        model = "x"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, prompt, system=None, **kwargs):
+            raise Exception("HTTP 429: try again in 26m16s")
+
+    class ProviderBom:
+        name = "bom"
+        model = "y"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, prompt, system=None, **kwargs):
+            return "resposta boa"
+
+    monkeypatch.setattr(llm_providers.time, "sleep", lambda s: esperas.append(s))
+    client = LLMClient(providers=[ProviderQuebrado(), ProviderBom()], retries=3)
+    resposta = client.complete("pergunta")
+    assert resposta.text == "resposta boa"
+    assert resposta.provider == "bom"
+    # Nenhuma espera longa foi executada: pulou direto para o proximo provider.
+    assert esperas == [], esperas
+
+
+def test_stats_report_configured_providers_and_failures(monkeypatch):
+    """O relatorio precisa distinguir "nao configurado" de "configurado e falhou".
+
+    Com --config, uma cadeia em que todos os providers reais falharam aparecia
+    apenas como mock, e o aviso dizia "nenhum LLM real foi configurado" — o que
+    escondia justamente a informacao util: quem falhou e quantas vezes.
+    """
+    import llm_providers
+    from llm_providers import LLMClient
+
+    class P:
+        name = "groq"
+        model = "m"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, *a, **k):
+            raise Exception("HTTP 429: try again in 9m34s")
+
+    monkeypatch.setattr(llm_providers.time, "sleep", lambda s: None)
+    client = LLMClient(providers=[P()], retries=1)
+    try:
+        client.complete("x")
+    except RuntimeError:
+        pass
+    stats = client.stats()
+    assert stats["providers_configurados"] == ["groq"]
+    # Uma única falha: a espera pedida (9m34s) excede o teto, então o cliente
+    # pula o provider na primeira tentativa em vez de insistir.
+    assert stats["falhas_por_provider"]["groq"] == 1
+
+
 def test_latex_compile_produces_distinct_pdf(tmp_path):
     """Com pdflatex presente, o PDF do LaTeX é separado e não sobrescreve o ABNT."""
     from core.paper import LaTeXFormatter
