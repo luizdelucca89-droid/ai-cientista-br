@@ -1,0 +1,3 @@
+Predição de surtos de dengue usando dados climáticos no Brasil
+Otimização de irrigação usando IoT e aprendizado de máquina no Cerrado
+Impacto de gamificação no aprendizado de programação em escolas públicas

@@ -1,0 +1,99 @@
+{
+  "project": {
+    "name": "AI Cientista Brasileiro",
+    "version": "1.0.0",
+    "language": "pt-BR",
+    "disclaimer": "Todo conteúdo gerado deve ser revisado por humanos. Divulgue sempre o uso de IA."
+  },
+  "llm": {
+    "provider": "mock",
+    "model": "gpt-4o-mini",
+    "base_url": "https://api.openai.com/v1",
+    "temperature": 0.2,
+    "max_tokens": 2048,
+    "timeout": 60,
+    "retries": 2,
+    "fallback_order": ["openai_compatible", "mock"],
+    "cache": {
+      "enabled": true,
+      "path": "outputs/llm_cache.sqlite3"
+    }
+  },
+  "llm_providers": {
+    "chatgpt_free": {
+      "enabled": false,
+      "url": "https://chatgpt.com/",
+      "notes": "Automação via Selenium. Requer sessão autenticada e respeita os ToS."
+    },
+    "gemini_free": {
+      "enabled": false,
+      "url": "https://gemini.google.com/app",
+      "notes": "Automação via Selenium. Requer sessão autenticada e respeita os ToS."
+    },
+    "claude_free": {
+      "enabled": false,
+      "url": "https://claude.ai/new",
+      "notes": "Automação via Selenium. Requer sessão autenticada e respeita os ToS."
+    }
+  },
+  "integrations": {
+    "offline": false,
+    "crossref": {
+      "enabled": true,
+      "base_url": "https://api.crossref.org/works",
+      "mailto": "ai.cientista@example.org",
+      "timeout": 15,
+      "rate_limit_seconds": 1.0
+    },
+    "scielo": {
+      "enabled": true,
+      "base_url": "https://articlemeta.scielo.org/api/v1",
+      "timeout": 15,
+      "rate_limit_seconds": 1.0
+    },
+    "openalex": {
+      "enabled": true,
+      "base_url": "https://api.openalex.org/works",
+      "timeout": 15,
+      "rate_limit_seconds": 0.5
+    },
+    "bcb": {
+      "enabled": true,
+      "base_url": "https://api.bcb.gov.br/dados/serie",
+      "timeout": 15,
+      "rate_limit_seconds": 1.0
+    },
+    "ibge": {
+      "enabled": true,
+      "base_url": "https://servicodados.ibge.gov.br/api",
+      "timeout": 15,
+      "rate_limit_seconds": 0.5
+    }
+  },
+  "agents": {
+    "planner": {"temperature": 0.4, "max_hypotheses": 3},
+    "experimentalist": {"temperature": 0.1, "max_retries": 2},
+    "reviewer": {"temperature": 0.3, "strictness": 0.7, "reviewer_count": 5},
+    "writer": {"temperature": 0.5, "iterations": 2},
+    "validator": {"temperature": 0.0, "min_score": 0.7},
+    "data_integrator": {"max_sources": 12}
+  },
+  "experiments": {
+    "seed": 42,
+    "test_size": 0.3,
+    "alpha": 0.05,
+    "max_runtime_seconds": 120,
+    "allow_code_execution": true
+  },
+  "paper": {
+    "standard": "ABNT NBR 6022/6028",
+    "max_references": 12,
+    "require_abstract_pt": true,
+    "require_abstract_en": true,
+    "latex": true
+  },
+  "paths": {
+    "output_dir": "outputs",
+    "memory_db": "outputs/memory.sqlite3"
+  }
+}
