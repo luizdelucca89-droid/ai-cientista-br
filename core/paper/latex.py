@@ -20,6 +20,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.paper.headings import (
+    renumber_subsections,
+    strip_ai_declaration_blocks,
+    strip_duplicate_heading,
+)
 from core.utils import ensure_dir, setup_logger
 
 logger = setup_logger(__name__)
@@ -92,13 +97,18 @@ class LaTeXFormatter:
     ) -> str:
         """Monta o documento LaTeX completo."""
         body_parts: list[str] = []
-        for key, heading in (
-            ("introducao", "Introdução"),
-            ("metodologia", "Metodologia"),
-            ("resultados", "Resultados e Discussão"),
-            ("conclusao", "Conclusão"),
+        for numero, key, heading in (
+            (1, "introducao", "Introdução"),
+            (2, "metodologia", "Metodologia"),
+            (3, "resultados", "Resultados e Discussão"),
+            (4, "conclusao", "Conclusão"),
         ):
-            content = self._escape(sections.get(key, "").strip())
+            # Remover o título do LLM antes de escapar: depois do escape os
+            # acentos viram comandos e a comparação com o título esperado falha.
+            body = strip_duplicate_heading(sections.get(key, "").strip(), heading)
+            body = strip_ai_declaration_blocks(body)
+            body = renumber_subsections(body, numero)
+            content = self._escape(body)
             if content:
                 body_parts.append(f"\\section{{{heading}}}\n{content}\n")
         if figures:
@@ -112,8 +122,12 @@ class LaTeXFormatter:
             "title": self._escape(metadata.get("titulo") or topic),
             "authors": self._escape("; ".join(metadata.get("autores") or ["AI Cientista Brasileiro"])),
             "date": self._escape(str(metadata.get("data", ""))),
-            "resumo": self._escape(sections.get("resumo", "").strip()),
-            "abstract": self._escape(sections.get("abstract", "").strip()),
+            "resumo": self._escape(
+                strip_duplicate_heading(sections.get("resumo", "").strip(), "Resumo")
+            ),
+            "abstract": self._escape(
+                strip_duplicate_heading(sections.get("abstract", "").strip(), "Abstract")
+            ),
             "palavras_chave": self._escape("; ".join(metadata.get("palavras_chave", []))),
             "keywords": self._escape("; ".join(metadata.get("keywords", []))),
             "body": "\n".join(body_parts),

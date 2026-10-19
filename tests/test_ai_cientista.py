@@ -639,6 +639,115 @@ def test_stats_report_configured_providers_and_failures(monkeypatch):
     assert stats["falhas_por_provider"]["groq"] == 1
 
 
+def test_render_markdown_nao_duplica_titulos_de_secao():
+    """O formatador nao pode repetir o titulo que o LLM ja escreveu.
+
+    O redator devolve "## 1. INTRODUCAO\n\ntexto" e o formatador adiciona
+    "## 1 INTRODUCAO". Sem deduplicar, toda secao de todo paper saia com dois
+    titulos seguidos.
+    """
+    from core.paper.abnt import ABNTFormatter
+
+    sections = {
+        "resumo": "**RESUMO**\n\nEste estudo investigou o deficit.",
+        "abstract": "**ABSTRACT**\n\nThis study investigated.",
+        "introducao": "## 1. INTRODUCAO\n\nO agronegocio brasileiro cresce.",
+        "metodologia": "## METODOLOGIA\n\nUsou-se um dataset sintetico.",
+        "resultados": "## 3. RESULTADOS\n\nA acuracia foi de 0,85.",
+        "conclusao": "## 4. CONCLUSAO\n\nConclui-se que ha relacao.",
+    }
+    md = ABNTFormatter().render_markdown(
+        topic="Armazenagem de graos",
+        sections=sections,
+        references=["[1] REFERENCIA. Titulo. 2024."],
+        metadata={"titulo": "Armazenagem de graos", "data": "2026-01-01"},
+    )
+    for titulo in ("## 1 INTRODUÇÃO", "## 2 METODOLOGIA", "## 3 RESULTADOS E DISCUSSÃO", "## 4 CONCLUSÃO"):
+        assert md.count(titulo) == 1, (titulo, md.count(titulo))
+    assert "## 1. INTRODUÇÃO" not in md
+    assert md.count("## RESUMO") == 1
+    # O corpo nao pode ser engolido junto com o titulo.
+    assert "O agronegocio brasileiro cresce." in md
+    assert "A acuracia foi de 0,85." in md
+
+
+def test_strip_duplicate_heading_preserva_texto_do_corpo():
+    """Nao confundir titulo com uma frase que comeca com a mesma palavra."""
+    from core.paper.headings import strip_duplicate_heading as s
+
+    # Sem marcador de titulo: e texto, nao titulo.
+    assert s("Introducao e o tema central", "Introducao") == "Introducao e o tema central"
+    assert s("texto sem titulo", "1 INTRODUCAO") == "texto sem titulo"
+    # Com marcador: e titulo, remove.
+    assert s("## 1. INTRODUCAO\n\ncorpo", "1 INTRODUCAO") == "corpo"
+    assert s("**RESUMO**\n\ncorpo", "RESUMO") == "corpo"
+    # O LLM abrevia o titulo esperado.
+    assert s("## 3. RESULTADOS\n\ncorpo", "3 RESULTADOS E DISCUSSAO") == "corpo"
+    # Titulo de outra secao nao e removido.
+    assert s("## 2. MATERIAIS E METODOS\n\ncorpo", "2 METODOLOGIA").startswith("## 2.")
+
+
+def test_remove_declaracao_de_ia_repetida_nas_secoes():
+    """O redator fecha cada secao com uma declaracao de IA; so uma deve sobrar.
+
+    O formatador emite a declaracao canonica no fim do documento. As copias que
+    o LLM escreve dentro das secoes faziam o mesmo paragrafo aparecer quatro
+    vezes no paper.
+    """
+    from core.paper.abnt import ABNTFormatter
+
+    corpo = (
+        "## METODOLOGIA\n\nO metodo foi quantitativo.\n\n---\n\n"
+        "### Declara\u00e7\u00e3o de Uso de Intelig\u00eancia Artificial\n"
+        "Declara-se que ferramentas de IA foram utilizadas."
+    )
+    md = ABNTFormatter().render_markdown(
+        topic="Teste",
+        sections={"metodologia": corpo},
+        references=["[1] REF. Titulo. 2024."],
+        metadata={"titulo": "Teste", "data": "2026-01-01"},
+    )
+    assert "O metodo foi quantitativo." in md
+    # A declaracao interna saiu; a canonica do formatador permanece.
+    assert md.count("Declara\u00e7\u00e3o de Uso de Intelig\u00eancia Artificial") == 0
+    assert "Declara-se que ferramentas de IA foram utilizadas." not in md
+    assert md.count("## DECLARA\u00c7\u00c3O DE USO DE IA") == 1
+
+    # Variante "Declaracao sobre o Uso de Inteligencia Artificial" tambem sai.
+    corpo2 = (
+        "## METODOLOGIA\n\nO metodo.\n\n"
+        "### Declara\u00e7\u00e3o sobre o Uso de Intelig\u00eancia Artificial\n"
+        "Declara-se que ferramentas de IA."
+    )
+    md2 = ABNTFormatter().render_markdown(
+        topic="Teste",
+        sections={"metodologia": corpo2},
+        references=["[1] REF. 2024."],
+        metadata={"titulo": "Teste", "data": "2026-01-01"},
+    )
+    assert "Declara\u00e7\u00e3o sobre o Uso" not in md2
+    assert "O metodo." in md2
+
+
+def test_renumera_subsecoes_para_o_numero_da_secao():
+    """O LLM numera subsecoes por conta propria e erra o prefixo.
+
+    Aparecia "### 3.1" dentro da secao 2 (METODOLOGIA) e "### 4.1" dentro da
+    secao 3 (RESULTADOS). O prefixo deve seguir a secao que contem a subsecao.
+    """
+    from core.paper.headings import renumber_subsections
+
+    corpo = "### 3.1. Amostragem\n\ntexto\n\n### 3.2. Modelos\n\nmais"
+    out = renumber_subsections(corpo, 2)
+    assert "### 2.1. Amostragem" in out
+    assert "### 2.2. Modelos" in out
+    assert "### 3.1" not in out
+    # Variante sem ponto final depois do numero.
+    assert "### 3.1. Desempenho" in renumber_subsections("### 4.1 Desempenho", 3)
+    # Subsecao sem numero nao e tocada.
+    assert renumber_subsections("### Sem numero", 2) == "### Sem numero"
+
+
 def test_latex_compile_produces_distinct_pdf(tmp_path):
     """Com pdflatex presente, o PDF do LaTeX é separado e não sobrescreve o ABNT."""
     from core.paper import LaTeXFormatter

@@ -66,3 +66,16 @@ comportamento documentado lá.
 - `outputs/`, `*.sqlite3` e `*.pdf` estão no `.gitignore` — artefatos de execução
   não vão para o controle de versão.
 - `pypdf` é apenas ferramenta de verificação, não é dependência do projeto.
+
+## Escopo dos dados: evidência real, experimento sintético
+
+As integrações (Crossref, SciELO, OpenAlex, BCB, IBGE) alimentam a fase de
+**evidências**: artigos com DOI, séries do BCB e contexto do IBGE entram no
+prompt e nas referências do paper. Já `core/experiments/runner.py` usa
+`generate_synthetic_dataset`, ou seja, o **experimento é sintético e
+determinístico** (seed fixa).
+
+Consequência prática: o paper cita dados brasileiros reais na fundamentação, mas
+as métricas do modelo (F1, AUC) vêm de dados gerados, não de medições de campo.
+Ao apresentar resultados, deixe isso explícito — o validador costuma apontar a
+mesma coisa quando o tema promete uma variável que a base sintética não contém.
