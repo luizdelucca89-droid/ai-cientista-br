@@ -269,7 +269,7 @@ class LaTeXFormatter:
             "Δ": "Delta", "Σ": "Sigma", "Ω": "Omega", "Γ": "Gamma", "Λ": "Lambda", "Π": "Pi",
         }
         for char, name in greek.items():
-            typography[char] = stash(f"${'\\' + name}$")
+            typography[char] = stash("$" + "\\" + name + "$")
 
         # Sub/sobrescritos Unicode (ex.: CO₂, km²) usados pelo LLM em unidades.
         subscript = "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
