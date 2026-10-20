@@ -231,6 +231,14 @@ def generate_submission_package(
             f"Termos suspeitos em: {', '.join(sorted(set(suspeitos))[:5])}."
         )
 
+    fidelidade = ((ciclo.get("fidelidade_pre_formatacao") or {}).get("numeros_sem_suporte")) or \
+        (((ciclo.get("validacao") or {}).get("fidelidade_numerica") or {}).get("numeros_sem_suporte")) or []
+    if fidelidade:
+        raise IntegrityError(
+            "Pacote de submissão rejeitado: o manuscrito cita números sem lastro "
+            f"nos dados reais: {sorted(set(fidelidade))[:10]}."
+        )
+
     paper_pdf = ciclo_dir / "paper.pdf"
     paper_tex = ciclo_dir / "paper.tex"
     if not paper_pdf.exists() or not paper_tex.exists():
