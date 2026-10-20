@@ -24,7 +24,33 @@ logger = setup_logger(__name__)
 
 # Palavras que denunciam base sintética nos metadados do ciclo.
 # Sem acento de propósito: a comparação roda sobre texto normalizado.
-TERMOS_SINTETICOS = ("sintetic", "synthetic", "simulad", "fake", "mock data")
+#
+# Não inclui "simulad": simulação é um método legítimo ("ataques DoS simulados",
+# "rede IoT simulada"), e o termo rejeitava ciclos com dados 100% reais.
+TERMOS_SINTETICOS = ("sintetic", "synthetic", "fake", "mock data")
+
+
+def _detectar_sinteticos(payload: Any, trilha: str = "") -> list[str]:
+    """Varre os metadados do experimento em busca de termos que denunciem dados
+    sintéticos. Devolve as trilhas onde a palavra apareceu (ex.: ``dataset.tipo``).
+
+    A varredura cobre apenas o bloco ``experimento`` (desenho e resultado), que é
+    o metadado do que foi executado. A prosa das seções do artigo não entra: um
+    trabalho pode citar "dados sintéticos" legitimamente ao discutir a literatura.
+    """
+    achados: list[str] = []
+    if isinstance(payload, dict):
+        for chave, valor in payload.items():
+            achados.extend(_detectar_sinteticos(valor, f"{trilha}.{chave}" if trilha else str(chave)))
+    elif isinstance(payload, list):
+        for i, valor in enumerate(payload):
+            achados.extend(_detectar_sinteticos(valor, f"{trilha}[{i}]"))
+    elif isinstance(payload, str):
+        texto = unicodedata.normalize("NFKD", payload.lower())
+        texto = "".join(c for c in texto if not unicodedata.combining(c))
+        if any(termo in texto for termo in TERMOS_SINTETICOS):
+            achados.append(trilha)
+    return achados
 
 INSTRUCOES = """# Instruções de submissão
 
