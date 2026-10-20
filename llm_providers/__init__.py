@@ -28,6 +28,10 @@ from core.utils import ensure_dir, sha256_text, setup_logger, utcnow_iso
 
 logger = setup_logger(__name__)
 
+# Versão do texto determinístico do ``MockProvider``. Incrementar quando as
+# respostas do mock mudarem invalida as entradas antigas do cache em disco.
+CACHE_VERSION = 2
+
 # Alguns gateways (Cloudflare, na frente da Groq) bloqueiam clientes sem
 # User-Agent de navegador com o erro 1010.
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -606,8 +610,13 @@ class LLMClient:
 
         Sem isto, uma resposta do ``mock`` já em cache seria devolvida numa
         execução com um LLM real, mascarando completamente o provider escolhido.
+
+        A versão entra na chave porque o texto do ``mock`` é código nosso: ao
+        corrigi-lo, as respostas antigas em disco ficariam obsoletas e voltariam
+        a aparecer nas execuções seguintes.
         """
-        return ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
+        cadeia = ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
+        return f"v{CACHE_VERSION}:{cadeia}"
 
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
         temperature = float(kwargs.pop("temperature", self.temperature))
