@@ -33,9 +33,12 @@ sys.path.insert(0, str(ROOT))
 from core.config import Config  # noqa: E402
 from core.experiments import (  # noqa: E402
     ExperimentRunner,
+    RealDataUnavailableError,
+    build_agriculture_dataset,
     build_dengue_outbreak_dataset,
+    build_deforestation_dataset,
+    build_education_dataset,
     build_real_dataset,
-    generate_synthetic_dataset,
 )
 from core.memory import MemorySystem  # noqa: E402
 from core.orchestrator import Orchestrator  # noqa: E402
@@ -91,22 +94,36 @@ def test_memory_persists_cycle_and_knowledge(tmp_path):
 # --------------------------------------------------------------------------- #
 # Experimento (treina modelos e roda testes estatísticos de verdade)
 # --------------------------------------------------------------------------- #
-def test_synthetic_dataset_is_reproducible():
-    X1, y1, meta1 = generate_synthetic_dataset(seed=42)
-    X2, y2, _ = generate_synthetic_dataset(seed=42)
-    assert (X1 == X2).all() and (y1 == y2).all()
-    assert meta1["seed"] == 42
-    assert meta1["balanceamento"]["positivos"] > 0
+def test_synthetic_generator_was_removed():
+    """O sistema não fabrica dados: o gerador sintético não existe mais."""
+    import core.experiments as experiments
+
+    assert not hasattr(experiments, "generate_synthetic_dataset")
+    assert not hasattr(experiments.runner, "generate_synthetic_dataset")
 
 
-def test_experiment_runner_produces_real_metrics(tmp_path):
-    # Tópico sem fonte pública de observações: exercita o caminho sintético de
-    # forma offline e determinística. O caminho real tem teste próprio, marcado
-    # como network.
+def test_experiment_runner_raises_without_real_source(tmp_path):
+    """Sem fonte pública de observações, o runner falha explicitamente.
+
+    O runner não cai para uma base sintética; ele levanta
+    ``RealDataUnavailableError`` para que o ciclo registre a ausência de dados em
+    vez de publicar números inventados.
+    """
     runner = ExperimentRunner(seed=7, output_dir=tmp_path)
-    result = runner.run("previsao de churn em telecomunicacoes", {"id": "H1", "enunciado": "ML > baseline"})
+    with pytest.raises(RealDataUnavailableError):
+        runner.run("previsao de churn em telecomunicacoes", {"id": "H1", "enunciado": "ML > baseline"})
 
-    assert result.dataset["tipo"] != "dados_reais"
+
+def test_experiment_runner_runs_on_real_dataset(tmp_path):
+    """Com fonte pública real, o runner treina e produz métricas verificáveis.
+
+    Usa o cache versionado de observações reais (``data/dataset_cache``) em modo
+    offline, então o teste é determinístico e não depende de rede.
+    """
+    runner = ExperimentRunner(seed=7, output_dir=tmp_path, cache_dir="data/dataset_cache", offline=True)
+    result = runner.run("Predição de surtos de dengue no Brasil", {"id": "H1", "enunciado": "ML > baseline"})
+
+    assert result.dataset["tipo"] == "dados_reais"
     assert set(result.metrics) == {
         "baseline_estatistico",
         "regressao_logistica",
@@ -374,9 +391,46 @@ def test_runner_uses_real_dataset_and_temporal_split(tmp_path):
 
 
 def test_real_dataset_selection_by_topic():
-    """Tópicos fora da dengue não têm fonte real e caem no caminho sintético."""
-    assert build_real_dataset("previsao de churn em telecom") is None
-    assert build_real_dataset("") is None
+    """O roteamento escolhe a fonte real certa e recusa temas sem fonte pública.
+
+    Usa o cache versionado (offline) para não depender de rede.
+    """
+    cache = "data/dataset_cache"
+    # Temas sem fonte pública implementada: nada é fabricado.
+    assert build_real_dataset("previsao de churn em telecom", cache_dir=cache, offline=True) is None
+    assert build_real_dataset("", cache_dir=cache, offline=True) is None
+    # Temas com fonte real: cada um resolve para a origem correta.
+    dengue = build_real_dataset("dengue e clima no Brasil", cache_dir=cache, offline=True)
+    assert dengue is not None and "InfoDengue" in dengue.meta["origem"]
+    desmat = build_real_dataset("desmatamento na Amazonia", cache_dir=cache, offline=True)
+    assert desmat is not None and "PRODES" in desmat.meta["origem"]
+    agro = build_real_dataset("irrigacao no Cerrado", cache_dir=cache, offline=True)
+    assert agro is not None and "SIDRA" in agro.meta["origem"]
+    edu = build_real_dataset("gamificacao no ensino", cache_dir=cache, offline=True)
+    assert edu is not None and "SIDRA" in edu.meta["origem"]
+
+
+def test_real_datasets_track_provenance():
+    """Todo dataset real carrega procedência explícita nos metadados.
+
+    Exigência do projeto: o manuscrito precisa citar de onde veio cada número.
+    """
+    cache = "data/dataset_cache"
+    for builder, esperado in (
+        (build_dengue_outbreak_dataset, "InfoDengue"),
+        (build_deforestation_dataset, "PRODES"),
+        (build_agriculture_dataset, "SIDRA"),
+        (build_education_dataset, "SIDRA"),
+    ):
+        dataset = builder(cache_dir=cache, offline=True)
+        assert dataset is not None, builder.__name__
+        meta = dataset.meta
+        assert meta["tipo"] == "dados_reais"
+        assert esperado in meta["origem"]
+        assert meta["fonte_url"].startswith("http")
+        assert meta["n_amostras"] == dataset.X.shape[0]
+        assert meta["n_variaveis"] == dataset.X.shape[1]
+        assert meta["split"] == "temporal"
 
 
 def test_detector_pega_numero_sem_lastro_nos_dados():

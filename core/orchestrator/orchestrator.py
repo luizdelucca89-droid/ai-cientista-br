@@ -82,6 +82,8 @@ class Orchestrator:
                 alpha=float(self.config.get("experiments", "alpha", default=0.05)),
                 output_dir=self.output_dir,
                 allow_code_execution=bool(self.config.get("experiments", "allow_code_execution", default=True)),
+                cache_dir=str(self.output_dir / "dataset_cache"),
+                offline=bool(self.config.get("integrations", "offline", default=False)),
             )
 
         agents_cfg = self.config.get("agents", default={}) or {}

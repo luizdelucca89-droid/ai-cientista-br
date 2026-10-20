@@ -28,8 +28,37 @@ pytest -q                                  # inclui testes que consultam APIs p�
 - Testes que dependem de internet levam o marcador `@pytest.mark.network`.
 - Números no artigo devem vir sempre da execução real de código, nunca de texto
   gerado pelo LLM. Essa separação é um princípio do projeto, não um detalhe.
+- **Zero dados sintéticos.** Nenhuma matriz de atributos é gerada ou simulada.
+  `core/experiments/datasets.py` só devolve observações públicas reais, com
+  procedência em `meta` (`tipo: dados_reais`, `origem`, `fonte_url`, `coletado_em`).
+  Sem fonte para o tópico, `ExperimentRunner.run` levanta `RealDataUnavailableError`.
 - Não invente dados de APIs que não existem. Quando uma fonte não tem API pública
-  (ex.: Lattes), o sistema declara a limitação em vez de simular.
+  (ex.: Lattes) ou exige credencial (ex.: Portal da Transparência), o sistema
+  declara a limitação em vez de simular.
+
+## Dados reais (fontes verificadas)
+
+- **InfoDengue** `https://info.dengue.mat.br/api/alertcity` — dengue (surto na semana seguinte).
+- **INPE/PRODES** `https://terrabrasilis.dpi.inpe.br/geoserver/ows` (WFS) — desmatamento por UF.
+  Use `/geoserver/...`; `api/geoserver` responde 404.
+- **IBGE/SIDRA** `https://apisidra.ibge.gov.br/values` — t.1612 (PAM, agricultura), t.9544 (ODS, educação).
+  Valores ausentes vêm como `..`, `...` ou `-`: filtre antes de converter.
+- **BDTD** `https://bdtd.ibict.br/vufind/api/v1/search` (VuFind) — teses/dissertações.
+- **Dataverse FGV** `https://dataverse.fgv.br/api/v1/search` — metadados (Dataverse USP não resolve DNS).
+- **DATASUS** FTP `ftp.datasus.gov.br` `/dissemin/publicos/...` — microdados `.dbc`
+  (`pyreaddbc`+`dbfread`). O TabNet é CGI e devolve HTML, não dados brutos.
+- **Kaggle** `/api/v1/datasets/list` — só metadados; download exige credencial.
+
+### Cache e replay offline
+
+`data/dataset_cache/*.json` guarda as respostas cruas das APIs (observações reais, não regeneradas).
+`ExperimentRunner(offline=True, cache_dir=...)` reproduz o experimento sem rede — é como os testes
+offline exercitam o caminho real. `_load_records` procura primeiro no `cache_dir` da execução e
+depois em `data/dataset_cache`. Ao trocar as observações, regrave o cache (rodada online).
+
+Roteamento de tópico → dataset: dengue → InfoDengue; agricultura (irrigação/soja/agro) → SIDRA PAM;
+desmatamento (Amazônia/cerrado/bioma) → PRODES; educação (escola/ensino/aprendizado) → SIDRA ODS.
+A ordem importa: agricultura vem antes de desmatamento porque "irrigação no Cerrado" casa com ambos.
 
 ## Arquitetura
 

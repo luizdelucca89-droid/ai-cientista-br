@@ -16,16 +16,17 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 
 | Componente | Situação |
 |---|---|
-| Coleta de evidências | **Real.** Crossref, SciELO/ArticleMeta, OpenAlex, Banco Central (SGS) e IBGE são consultados ao vivo. |
+| Coleta de evidências | **Real.** Crossref, SciELO/ArticleMeta, OpenAlex, BDTD (teses), Banco Central (SGS), IBGE (incl. SIDRA), Dataverse FGV, Kaggle (metadados), INPE/PRODES (WFS) e DATASUS (FTP `.dbc`) são consultados ao vivo. |
 | Execução de experimentos | **Real.** Treina regressão logística, floresta aleatória e gradient boosting; calcula acurácia, F1, AUC, intervalos de confiança bootstrap e testes t pareado/Wilcoxon. |
 | Métricas no artigo | **Reais.** Os números vêm da execução, nunca de texto gerado. |
 | Revisão por pares | **Real.** Painel de 5 revisores independentes com meta-revisor e voto majoritário ordinal. |
 | Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
-| Base experimental | **Real quando existe fonte pública.** Para temas com dados abertos brasileiros, o sistema baixa observações reais (ex.: InfoDengue/Fiocruz para dengue) e usa corte temporal com linha de base de persistência. Sem fonte disponível, cai numa base sintética reprodutível (seed fixa), e os metadados marcam `tipo: sintetica`. |
+| Base experimental | **Sempre real, com procedência.** Cada matriz vem de observações públicas baixadas ao vivo: InfoDengue (dengue), INPE/PRODES (desmatamento), IBGE/SIDRA PAM (agricultura) e IBGE/SIDRA ODS (educação). Os metadados registram `tipo: dados_reais`, a fonte, a URL e a data de coleta. **Não existe mais gerador sintético**: sem fonte pública para o tema, o runner levanta `RealDataUnavailableError` em vez de fabricar números. Um cache versionado (`data/dataset_cache/`) guarda as observações reais para replay offline determinístico. |
 | Fidelidade numérica | **Real.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito contra os dados produzidos e reporta os que não têm lastro. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
-| dados.gov.br | Exige token de API; por isso o contexto de dados abertos usa IBGE/SIDRA, que é público. |
+| Portal da Transparência | Exige chave de API gratuita; sem token a fonte é marcada como indisponível, nunca substituída. |
+| Kaggle | A busca pública devolve metadados; o download dos arquivos exige credenciais, então só os metadados são citados. |
 
 Sempre divulgue o uso de IA e revise o resultado antes de publicar.
 

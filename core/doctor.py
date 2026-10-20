@@ -26,10 +26,21 @@ OPTIONAL = ["numpy", "sklearn", "scipy", "pandas", "selenium", "matplotlib"]
 SOURCES = [
     ("Crossref", "https://api.crossref.org/works?rows=1"),
     ("OpenAlex", "https://api.openalex.org/works?per-page=1"),
-    ("SciELO ArticleMeta", "https://articlemeta.scielo.org/api/v1/info/"),
+    ("SciELO ArticleMeta", "https://articlemeta.scielo.org/api/v1/article/identifiers/?collection=scl&limit=1"),
     ("IBGE", "https://servicodados.ibge.gov.br/api/v1/localidades/estados"),
     ("Banco Central", "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/1?formato=json"),
     ("InfoDengue", "https://info.dengue.mat.br/api/alertcity?geocode=3304557&disease=dengue&format=json&ew_start=202301&ew_end=202302"),
+    ("BDTD", "https://bdtd.ibict.br/vufind/api/v1/search?lookfor=dengue&type=AllFields&limit=1"),
+    ("INPE/PRODES (WFS)", "https://terrabrasilis.dpi.inpe.br/geoserver/ows?service=WFS&version=1.0.0&request=GetCapabilities"),
+    ("IBGE/SIDRA", "https://apisidra.ibge.gov.br/values/t/6579/n3/all/v/9324/p/2021"),
+    ("Dataverse FGV", "https://dataverse.fgv.br/api/v1/search?q=brasil&type=dataset&per_page=1"),
+    ("Kaggle", "https://www.kaggle.com/api/v1/datasets/list?search=brazil"),
+]
+
+# Fontes que exigem credencial/ferramenta extra (verificadas à parte).
+OPTIONAL_SOURCES = [
+    ("DATASUS (FTP .dbc)", "ftp.datasus.gov.br", "requer pysus/pyreaddbc; microdados pesados"),
+    ("Portal da Transparência", "api.portaldatransparencia.gov.br", "requer chave de API gratuita"),
 ]
 
 
@@ -50,6 +61,7 @@ class Doctor:
     def run(self, output_dir: str = "outputs", check_network: bool = True, timeout: float = 8.0) -> dict[str, Any]:
         self._check_python()
         self._check_modules()
+        self._check_microdata_deps()
         self._check_output_dir(output_dir)
         self._check_providers()
         if check_network:
@@ -134,6 +146,23 @@ class Doctor:
                 self.checks.append(
                     Check(f"fonte aberta: {name}", False, f"{type(exc).__name__}", critical=False)
                 )
+        for name, host, motivo in OPTIONAL_SOURCES:
+            self.checks.append(
+                Check(f"fonte opcional: {name}", True, f"{host} — {motivo}", critical=False)
+            )
+
+    def _check_microdata_deps(self) -> None:
+        """Verifica as dependências de microdados (.dbc) e o suporte a FTP."""
+        for module in ("pyreaddbc", "dbfread"):
+            found = importlib.util.find_spec(module) is not None
+            self.checks.append(
+                Check(
+                    f"microdados DATASUS: {module}",
+                    found,
+                    "" if found else "ausente: instale pysus para ler .dbc",
+                    critical=False,
+                )
+            )
 
 
 def render(result: dict[str, Any]) -> str:
