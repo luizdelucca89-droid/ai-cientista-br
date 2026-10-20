@@ -55,6 +55,9 @@ class Config:
         defaults = read_json(DEFAULT_CONFIG_PATH, default={}) or {}
         cfg_path: Path | None = DEFAULT_CONFIG_PATH
         data: dict[str, Any] = dict(defaults)
+        # Sem --config explícito, aceita AI_CIENTISTA_CONFIG para trocar de stack
+        # (por exemplo, o config.free-stack.json) sem editar arquivos.
+        path = path or os.getenv("AI_CIENTISTA_CONFIG") or None
         if path:
             cfg_path = Path(path)
             override = read_json(cfg_path, default=None)

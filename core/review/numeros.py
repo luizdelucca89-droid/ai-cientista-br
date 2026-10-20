@@ -36,6 +36,11 @@ _PADRAO_REFERENCIA_CRUZADA = re.compile(
 # Versões de software ("Python 3.13.15"), que não são medições.
 _PADRAO_VERSAO = re.compile(r"[A-Za-z]+\s+\d+(?:\.\d+){1,3}")
 
+# Operadores de comparação e locuções equivalentes que transformam o número
+# seguinte em um limite, não em uma medição exata.
+_PADRAO_LIMITE_SUPERIOR = re.compile(r"(?:>=|≥|>|\bmaior que\b|\bacima de\b|\bsuperior a\b)\s*$", re.IGNORECASE)
+_PADRAO_LIMITE_INFERIOR = re.compile(r"(?:<=|≤|<|\bmenor que\b|\babaixo de\b|\binferior a\b)\s*$", re.IGNORECASE)
+
 
 def _remover_estrutura(manuscrito: str) -> str:
     """Remove numeração que não é afirmação sobre dados.
@@ -110,21 +115,48 @@ def _sustentado(valor: float, fontes: Iterable[float], tolerancia: float = 1e-6)
     return False
 
 
+def _passo_exibido(token: str) -> float:
+    """Menor incremento representável na precisão exibida em ``token``."""
+    if "." in token or "," in token:
+        casas = len(token.replace(",", ".").split(".")[1])
+        return 10.0 ** (-casas)
+    return 1.0
+
+
 def find_unsupported_numbers(manuscrito: str, fontes: Iterable[float]) -> list[float]:
     """Números do manuscrito sem lastro nos dados; ordenados e sem repetição.
 
     A comparação é feita na casa exibida: ``200201`` só é aceito se existir nas
     fontes, então um dígito trocado é acusado.
+
+    Números usados como **limite** (``p > 0,20``, ``acurácia acima de 0,95``) não
+    são medições exatas: um limite por truncamento esconde o valor real dentro da
+    faixa de uma casa decimal (``p > 0,20`` cobre ``[0,20; 0,21)``). Por isso o
+    limite é aceito quando há um dado real nessa faixa, e não quando há qualquer
+    valor do lado do sinal — o que aceitaria um ``p > 0,30`` falso.
     """
     disponiveis = list(fontes)
     suspeitos: set[float] = set()
-    for token in _PADRAO_NUMERO.findall(_remover_estrutura(manuscrito)):
+    texto = _remover_estrutura(manuscrito)
+    for match in _PADRAO_NUMERO.finditer(texto):
+        token = match.group(0)
         valor = _para_float(token)
         if valor is None:
             continue
         tem_decimal = "." in token or "," in token
         if not tem_decimal and valor < _LIMITE_ESTRUTURAL:
             continue  # numeração de seção, item de lista, índice de referência
-        if not _sustentado(valor, disponiveis):
-            suspeitos.add(valor)
+        if _sustentado(valor, disponiveis):
+            continue
+        passo = _passo_exibido(token)
+        contexto = texto[max(0, match.start() - 12) : match.start()]
+        if _PADRAO_LIMITE_SUPERIOR.search(contexto) and any(
+            valor <= f < valor + passo for f in disponiveis
+        ):
+            continue  # limite superior: dado real na faixa truncada
+        if _PADRAO_LIMITE_INFERIOR.search(contexto) and any(
+            valor - passo < f <= valor for f in disponiveis
+        ):
+            continue  # limite inferior: dado real na faixa truncada
+        suspeitos.add(valor)
     return sorted(suspeitos)

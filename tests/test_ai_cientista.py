@@ -411,6 +411,23 @@ def test_detector_ignora_numeracao_estrutural_e_valores_arredondados():
     assert find_unsupported_numbers(manuscrito, fontes) == []
 
 
+def test_detector_aceita_limite_por_truncamento_mas_pega_limite_falso():
+    """Um limite conservador (p > 0,20 para p = 0,2065) não é número sem lastro.
+
+    Caso real: o manuscrito escreveu "p > 0,20" e "p > 0,24" a partir de
+    p = 0,2065 e p = 0,2490. Acusar isso era falso positivo. Já um limite que
+    nenhum dado sustenta ("p > 0,30") continua sendo apontado.
+    """
+    from core.review.numeros import find_unsupported_numbers
+
+    fontes = [0.206553, 0.249020, 0.655645]
+    legitimo = "Floresta com p > 0,20 e Gradient Boosting com p > 0,24."
+    assert find_unsupported_numbers(legitimo, fontes) == []
+
+    falso = "Todos os modelos com p > 0,30."
+    assert 0.3 in find_unsupported_numbers(falso, fontes)
+
+
 def test_detector_ignora_numeracao_de_subsecao_e_versoes():
     """Títulos numerados e versões de software não são afirmações sobre dados.
 

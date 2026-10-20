@@ -191,6 +191,13 @@ python main.py --config config.free-stack.json --topic "..." --force
 Um `--config` parcial é combinado com o `config.json` (merge profundo), então
 você não precisa repetir as integrações nem os caminhos.
 
+Os exemplos em `examples/` carregam `config.json`. Para rodá-los com o stack
+gratuito, aponte `AI_CIENTISTA_CONFIG` para o outro arquivo:
+
+```bash
+AI_CIENTISTA_CONFIG=config.free-stack.json python examples/quick_start.py
+```
+
 ### Quais tiers realmente funcionam
 
 Limites e condições mudam rápido; confira antes de confiar.
