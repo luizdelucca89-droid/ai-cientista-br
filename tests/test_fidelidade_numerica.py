@@ -137,6 +137,22 @@ def _ciclo_com_numero_sem_lastro(tmp_path: Path, numeros: list[float]) -> Path:
     return ciclo_dir
 
 
+def test_virgula_decimal_latex_nao_gera_falso_positivo():
+    """``0{,}235`` (vírgula escapada do LaTeX) é o mesmo 0,235 do dado.
+
+    Sem normalizar ``{,}`` antes de extrair números, o token vira dois ("0" e
+    "235") e o "235" é acusado de não ter lastro — foi o que reprovou o ciclo
+    #138 do enxame de dengue, que só continha valores fiéis.
+    """
+    from core.review.numeros import find_unsupported_numbers
+
+    fontes = {0.7178, 0.235, 0.8989}
+    assert find_unsupported_numbers(r"desvio padrão de $0{,}235$", fontes) == []
+    assert find_unsupported_numbers("desvio padrão de $0,235$", fontes) == []
+    # Um valor realmente sem lastro continua sendo acusado.
+    assert find_unsupported_numbers("desvio padrão de $0{,}999$", fontes) == [0.999]
+
+
 def test_portao_rejeita_submissao_com_numero_sem_lastro(tmp_path):
     ciclo_dir = _ciclo_com_numero_sem_lastro(tmp_path, [824.0])
     with pytest.raises(IntegrityError, match="sem lastro"):

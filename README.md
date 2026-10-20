@@ -23,7 +23,7 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 | Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
 | Base experimental | **Sempre real, com procedência.** Cada matriz vem de observações públicas baixadas ao vivo: InfoDengue (dengue), INPE/PRODES (desmatamento), IBGE/SIDRA PAM (agricultura) e IBGE/SIDRA ODS (educação). Os metadados registram `tipo: dados_reais`, a fonte, a URL e a data de coleta. **Não existe mais gerador sintético**: sem fonte pública para o tema, o runner levanta `RealDataUnavailableError` em vez de fabricar números. Um cache versionado (`data/dataset_cache/`) guarda as observações reais para replay offline determinístico. |
 | Modalidade imagem (satélite) | **Real.** Para temas como "desmatamento com imagens de satélite", o sistema baixa o mosaico temporal do PRODES no WMS público do TerraBrasilis/INPE e extrai um vetor de features (textura Haralick + cor/vegetação) da imagem real, concatenado ao painel tabular. Nenhum pixel é sintetizado: sem imagem real e sem cache, o código falha explicitamente. |
-| Fidelidade numérica | **Real.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito contra os dados produzidos e reporta os que não têm lastro. |
+| Fidelidade numérica | **Real e bloqueante.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito (inclusive o `abstract` em inglês) contra os dados produzidos, **reescreve** as seções que citam número sem lastro e, no fim, recusa o pacote de submissão (`IntegrityError`) se ainda houver número fabricado. Um número inventado pelo LLM não chega ao PDF publicado. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
 | Portal da Transparência | Exige chave de API gratuita; sem token a fonte é marcada como indisponível, nunca substituída. |
@@ -125,6 +125,36 @@ python examples/quick_start.py      # dengue
 python examples/agronegocio.py      # irrigação no Cerrado
 python examples/educacao.py         # gamificação
 ```
+
+### Ataque de enxame (swarm)
+
+`swarm_dengue.py` roda três ciclos em sequência sobre o mesmo fenômeno (surtos de
+dengue), variando a modelagem, e imprime um painel comparativo. Os dados são
+sempre observados (InfoDengue); a comparação cobre ciclo, modelo, F1/AUC,
+fidelidade numérica e procedência.
+
+```bash
+python swarm_dengue.py
+AI_CIENTISTA_CONFIG=config.free-stack.json python swarm_dengue.py   # provider real
+
+cat resultado_swarm.txt      # painel gravado ao final
+```
+
+Modelagens do enxame: baseline climático com regressão logística, features de
+defasagem temporal (lag de 4 semanas) com Random Forest e Gradient Boosting com
+validação cruzada temporal estrita. Cada braço treina **apenas** o modelo pedido
+no desenho experimental — o painel compara de fato modelagens distintas.
+
+Resultado de uma execução real (Gemini, dados do InfoDengue, n=817 semanas):
+
+| # | Ciclo | Modelo | F1 | AUC | Fidelidade |
+|---|-------|--------|-----|-----|------------|
+| 1 | #136 | regressão logística (baseline climático) | 0,8696 | 0,9834 | ok |
+| 2 | #137 | floresta aleatória + lag de 4 semanas (n=779) | 0,8974 | 0,9757 | ok |
+| 3 | #138 | gradient boosting + CV temporal estrita | 0,8989 | 0,9828 | ok |
+
+Os três ciclos usam dados reais e passam o portão de submissão; as métricas
+diferem porque os modelos e as features diferem.
 
 Uso como biblioteca:
 

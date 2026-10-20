@@ -337,6 +337,58 @@ def test_cycle_failure_is_recorded_in_memory(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Experimentos sensíveis ao desenho (sem rede)
+# --------------------------------------------------------------------------- #
+def test_runner_honra_modelos_do_desenho(tmp_path):
+    """O runner treina os modelos pedidos no desenho, não sempre a mesma tríade.
+
+    É o que faz um tópico diferir do outro: sem isso, todo ciclo treinaria os
+    mesmos três modelos e o painel do enxame seria uma comparação vazia.
+    """
+    from core.experiments.runner import _modelos_do_desenho
+
+    assert _modelos_do_desenho({"modelos": [{"nome": "RegressaoLogistica_Baseline"}]}) == ["regressao_logistica"]
+    assert _modelos_do_desenho({"modelos": [{"nome": "Random Forest com Lag de 4 semanas"}]}) == ["floresta_aleatoria"]
+    assert _modelos_do_desenho({"modelos": [{"nome": "Gradient Boosting"}, {"nome": "SVM"}]}) == ["gradient_boosting"]
+    assert _modelos_do_desenho(None) == ["regressao_logistica", "floresta_aleatoria", "gradient_boosting"]
+
+
+def test_runner_detecta_defasagem_no_desenho():
+    from core.experiments.runner import _defasagem_do_desenho
+
+    assert _defasagem_do_desenho({"pre_processamento": ["feature de defasagem temporal (lag de 4 semanas)"]}) == 4
+    assert _defasagem_do_desenho({"desenho": "usa defasagem de 2 semanas"}) == 2
+    assert _defasagem_do_desenho({}) == 0
+
+
+def test_runner_executa_apenas_modelos_pedidos(tmp_path):
+    """Dois desenhos distintos produzem métricas distintas sobre dados reais."""
+    runner = ExperimentRunner(seed=42, output_dir=tmp_path, cache_dir="data/dataset_cache", offline=True)
+
+    base = runner.run(
+        "Predição de surtos de dengue no Brasil",
+        {"id": "H1"},
+        plan={"modelos": [{"nome": "RegressaoLogistica_Baseline"}]},
+    )
+    lag = runner.run(
+        "Predição de surtos de dengue no Brasil",
+        {"id": "H1"},
+        plan={
+            "modelos": [{"nome": "Random Forest com Lag de 4 semanas"}],
+            "pre_processamento": ["lag de 4 semanas"],
+        },
+    )
+
+    assert set(base.metrics) == {"baseline_estatistico", "regressao_logistica"}
+    assert set(lag.metrics) == {"baseline_estatistico", "floresta_aleatoria"}
+    # A defasagem adiciona uma cópia defasada das features reais.
+    assert lag.dataset["defasagem_semanas"] == 4
+    assert lag.dataset["n_variaveis"] == 2 * base.dataset["n_variaveis"]
+    assert all(campo.endswith("_lag4") for campo in lag.dataset["variaveis"][len(lag.dataset["variaveis"]) // 2 :])
+    assert base.dataset["tipo"] == lag.dataset["tipo"] == "dados_reais"
+
+
+# --------------------------------------------------------------------------- #
 # Integrações reais (rede)
 # --------------------------------------------------------------------------- #
 @pytest.mark.network

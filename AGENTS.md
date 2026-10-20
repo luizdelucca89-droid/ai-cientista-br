@@ -143,6 +143,20 @@ Sem fonte pública para o tema, o runner levanta `RealDataUnavailableError`. Nã
 existe gerador sintético: `generate_synthetic_dataset` foi removido. Nenhum
 resultado é produzido a partir de dados fabricados.
 
+### O runner honra o desenho experimental
+
+O desenho do experimentalista (`plan["modelos"]`) escolhe **quais** estimadores
+treinar; `plan["pre_processamento"]` pode pedir defasagem temporal ("lag de 4
+semanas"). `_modelos_do_desenho` mapeia apelos livres ("Random Forest com Lag de
+4 semanas") para estimadores reais e `_codigo_do_desenho` gera o script só com os
+pedidos; `_defasagem_do_desenho` lê o lag e o construtor de dengue acrescenta as
+colunas `*_lagN` (medições reais de `t-N`, sem vazamento do futuro). Sem desenho,
+vale a tríade padrão (logística, floresta, boosting). Armadilha: antes disso o
+`plan` era recebido e **ignorado** — todo ciclo treinava a mesma tríade e tópicos
+distintos produziam experimentos idênticos (o enxame de dengue dava métricas
+iguais nos três braços, o que é uma comparação falsa). Modelos sem estimador
+implementado (SVM, regressão linear) são ignorados, não trocados em silêncio.
+
 Depois de validar, o orquestrador roda uma conferência determinística de
 **fidelidade numérica** (`core/review/numeros.py`): cada número do manuscrito é
 comparado com os dados produzidos, e os que não têm lastro são reportados. Isso
@@ -168,6 +182,11 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
    virava "AUC " e escapava da conferência. Como o texto PT usa vírgula, o defeito
    só aparecia no abstract. Agora o padrão exige um nome de software conhecido
    (python, torch, versão, ...) ou o prefixo `v`.
+3. A **vírgula decimal escapada do LaTeX** (`0{,}235`) virava dois tokens ("0" e
+   "235") antes da conferência, e o "235" era acusado de não ter lastro. O ciclo
+   #138 do enxame de dengue (gradient boosting) foi reprovado no portão só por
+   causa disso, embora todos os seus números fossem fiéis. `_remover_estrutura`
+   agora normaliza `{,}`/`{.}` para vírgula antes de extrair números.
 
 ## Interface gráfica e publicação
 

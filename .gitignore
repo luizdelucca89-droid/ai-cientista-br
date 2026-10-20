@@ -19,3 +19,6 @@ chromedriver
 
 # Segredos locais da interface (app.py)
 .env
+
+# Painel do enxame (artefato de execução)
+resultado_swarm.txt
