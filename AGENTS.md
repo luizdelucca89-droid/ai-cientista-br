@@ -207,3 +207,35 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
   prosa e entra na varredura; só termos que de fato denunciam fabricação ficam.
 
 
+
+## LLMs: roteamento por tarefa, coringa e chaves
+
+- `llm_providers/__init__.py` — `TaskRouter` roteia por categoria de tarefa a
+  partir de `config.modelos.json` (`roteamento_por_tarefa`). A cascata tem
+  **três níveis + mock**: modelo da tarefa → alternativa da tarefa → **coringa
+  Gemini** (`fallback_global.coringa`) → `mock`. O coringa é o último recurso
+  *real*: sem ele, um dia ruim de cota em uma categoria caía direto no mock.
+  O mock é só para CI/emergência total.
+- Armadilha: `TaskRouter.ativo` conta o coringa. Com **apenas**
+  `GEMINI_API_KEY`, o roteamento já é útil (o coringa atende qualquer tarefa).
+- Armadilha: `_signature()` inclui o coringa. Sem isso, a resposta real dele
+  numa execução seria devolvida como cache para a execução em que só há mock.
+- Armadilha: ao adicionar o coringa em `_providers_para`, use
+  `coringa.available()` — um coringa sem chave só gera "indisponível" no log.
+  E não o duplique: `build_task_router` o remove da `cadeia_global`.
+- Chaves ficam em `.env` (no `.gitignore`; modelo versionado em `.env.example`).
+  `carregar_env()` roda na **importação** de `llm_providers` com
+  `override=False`: variável já exportada no shell vence o arquivo. Antes só o
+  `app.py` carregava o `.env`, então `main.py` não enxergava as chaves.
+- Armadilha: `available()` rejeita placeholders (`sua_chave_real_aqui`, vazio,
+  só espaços). Sem isso, um `.env` recém-copiado fazia o provider parecer
+  disponível e gastava uma tentativa para voltar 401.
+- `tests/conftest.py` remove chaves de provider do ambiente (autouse). Sem
+  isso, com uma chave real exportada o roteador fica ativo e testes que esperam
+  um servidor local ou o mock passam a tentar a rede — a suíte fica
+  intermitente. Testes que precisam de chave a definem via `monkeypatch`.
+- Para validar a cascata com HTTP real sem cota: suba dois servidores
+  OpenAI-compatíveis locais (um sempre 429, outro 200), aponte o catálogo para
+  eles e exporte chaves falsas. Confira `metricas_llm.por_provider` no
+  `ciclo_completo.json` — `mock` não deve aparecer.
+
