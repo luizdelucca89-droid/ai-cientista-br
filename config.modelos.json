@@ -189,9 +189,9 @@
     }
   },
   "fallback_global": {
-    "_comentario": "Usado quando TODOS os modelos da categoria falham.",
+    "_comentario": "Usado quando TODOS os modelos da categoria falham. Ordem: coringa (ultima API real) e, so se ele tambem falhar, mock (CI/emergencia).",
+    "coringa": "gemini-flash-latest",
     "cadeia": [
-      "gemini-flash-latest",
       "mock"
     ]
   },

@@ -311,6 +311,134 @@ def test_router_inativo_sem_chaves(monkeypatch: pytest.MonkeyPatch) -> None:
     assert all(getattr(p, "name", "") != "modelo-codigo-1" for p in router.rota("experiment_plan"))
 
 
+# --------------------------------------------------------------------------- #
+# Coringa Gemini: ultimo recurso REAL antes do mock
+# --------------------------------------------------------------------------- #
+def test_coringa_entra_entre_a_categoria_e_o_mock() -> None:
+    """Ordem estrita: categoria -> coringa -> mock."""
+    fakes = _fakes("modelo-codigo-1", "modelo-codigo-2")
+    coringa = ProviderFalso("gemini-flash-latest")
+    mock = MockProvider()
+    router = _router(fakes, coringa=coringa, cadeia_global=[mock])
+    client = LLMClient(providers=list(fakes.values()), router=router, retries=0)
+
+    cadeia = client._providers_para("experiment_plan")
+
+    nomes = [p.name for p in cadeia]
+    assert nomes == ["modelo-codigo-1", "modelo-codigo-2", "gemini-flash-latest", "mock"]
+
+
+def test_coringa_assume_quando_a_categoria_toda_falha() -> None:
+    fakes = _fakes("modelo-codigo-1", "modelo-codigo-2", erros={
+        "modelo-codigo-1": RuntimeError("HTTP 429: rate limit"),
+        "modelo-codigo-2": RuntimeError("HTTP 503: unavailable"),
+    })
+    coringa = ProviderFalso("gemini-flash-latest")
+    mock = MockProvider()
+    router = _router(fakes, coringa=coringa, cadeia_global=[mock])
+    client = LLMClient(providers=list(fakes.values()), router=router, retries=0)
+
+    resp = client.complete("p", task="experiment_plan")
+
+    assert resp.provider == "gemini-flash-latest"  # nunca o mock
+    assert len(coringa.chamadas) == 1
+    assert coringa.chamadas[0]["max_tokens"] == 4096  # preset da categoria vale para o coringa
+
+
+def test_coringa_so_cai_no_mock_se_ele_tambem_falhar() -> None:
+    fakes = _fakes("modelo-codigo-1", erros={"modelo-codigo-1": RuntimeError("HTTP 429")})
+    coringa = ProviderFalso("gemini-flash-latest", erro=RuntimeError("HTTP 500"))
+    router = _router(fakes, coringa=coringa)
+    client = LLMClient(providers=list(fakes.values()), router=router, retries=0)
+
+    resp = client.complete("p", task="experiment_plan")
+
+    assert resp.provider == "mock"
+
+
+def test_sem_coringa_a_categoria_esgotada_vai_para_o_mock() -> None:
+    """Sem GEMINI_API_KEY o coringa não existe; a cadeia global responde."""
+    fakes = _fakes("modelo-codigo-1", erros={"modelo-codigo-1": RuntimeError("HTTP 429")})
+    router = _router(fakes, coringa=None, cadeia_global=[MockProvider()])
+    client = LLMClient(providers=list(fakes.values()), router=router, retries=0)
+
+    resp = client.complete("p", task="experiment_plan")
+
+    assert resp.provider == "mock"
+
+
+def test_coringa_nao_e_tentado_duas_vezes() -> None:
+    """Se o coringa já está na rota da categoria, não duplica na cascata."""
+    fakes = _fakes("modelo-codigo-1")
+    coringa = fakes["modelo-codigo-1"]
+    router = _router(fakes, coringa=coringa)
+    client = LLMClient(providers=list(fakes.values()), router=router, retries=0)
+
+    cadeia = client._providers_para("experiment_plan")
+
+    assert [p.name for p in cadeia].count("modelo-codigo-1") == 1
+
+
+def test_coringa_torna_o_router_ativo_sozinho() -> None:
+    """Só a GEMINI_API_KEY: ainda roteia (o coringa atende todas as tarefas)."""
+    coringa = ProviderFalso("gemini-flash-latest")
+    router = TaskRouter(
+        rotas={},
+        mapa_tarefas={"experiment_plan": "codigo"},
+        cadeia_global=[MockProvider()],
+        coringa=coringa,
+    )
+    assert router.ativo is True
+    assert [p.name for p in router.rota("experiment_plan")] == ["gemini-flash-latest"]
+
+
+def test_router_inativo_sem_coringa_nem_rota() -> None:
+    router = TaskRouter(rotas={}, mapa_tarefas={}, cadeia_global=[MockProvider()], coringa=None)
+    assert router.ativo is False
+
+
+def test_coringa_entra_na_assinatura_de_cache() -> None:
+    """A resposta do coringa não pode ser servida como cache do mock."""
+    fakes = _fakes("modelo-codigo-1")
+    com_coringa = LLMClient(
+        providers=list(fakes.values()),
+        router=_router(fakes, coringa=ProviderFalso("gemini-flash-latest")),
+        retries=0,
+    )
+    sem_coringa = LLMClient(
+        providers=list(fakes.values()),
+        router=_router(fakes, coringa=None),
+        retries=0,
+    )
+    assert com_coringa._signature() != sem_coringa._signature()
+
+
+def test_build_task_router_le_o_coringa_do_catalogo() -> None:
+    catalogo = json.loads(json.dumps(CATALOGO))
+    catalogo["fallback_global"] = {"coringa": "modelo-redacao-1", "cadeia": ["mock"]}
+    router = build_task_router(catalogo, {"fake": ProviderFalso("fake")})
+    assert router is not None
+    assert router.coringa is not None
+    assert router.coringa.name == "modelo-redacao-1"
+    # O coringa sai da cadeia global para não ser tentado duas vezes.
+    assert [p.name for p in router.cadeia_global] == ["mock"]
+
+
+def test_placeholder_de_env_nao_conta_como_chave(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Um .env recém-copiado não deve fingir que há uma chave.
+
+    As variáveis de ambiente são limpas porque o provider cai para
+    ``OPENAI_API_KEY`` quando a chave explícita é vazia — sem isso, outro teste
+    que exporta essa variável mudaria o resultado conforme a ordem.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AI_CIENTISTA_API_KEY", raising=False)
+    for valor in ("sua_chave_real_aqui", "CHANGEME", "  ", "", None):
+        p = OpenAICompatibleProvider(name="x", model="x", api_key=valor)
+        assert p.available() is False, f"{valor!r} não deveria contar como chave"
+    assert OpenAICompatibleProvider(name="x", model="x", api_key="AIzaSyReal123").available() is True
+
+
 def test_cliente_sem_router_mantem_comportamento_antigo() -> None:
     """Sem roteador, o cliente usa a cadeia de providers como antes."""
     p = ProviderFalso("modelo-codigo-1")

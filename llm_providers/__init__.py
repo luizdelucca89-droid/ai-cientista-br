@@ -28,6 +28,30 @@ from core.utils import ROOT, ensure_dir, read_json, sha256_text, setup_logger, u
 
 logger = setup_logger(__name__)
 
+
+def carregar_env(caminho: Path | None = None) -> None:
+    """Carrega ``.env`` para o ambiente, sem sobrescrever variáveis já definidas.
+
+    A chave fica no ``.env`` local (que está no ``.gitignore``) em vez de no
+    código ou em ``/tmp``. Chamado na importação deste módulo, que é o ponto por
+    onde todo acesso a LLM passa — assim ``main.py``, ``app.py`` e os testes
+    enxergam as chaves sem cada um precisar lembrar de carregar o arquivo.
+
+    ``override=False`` é deliberado: uma variável já exportada no shell (CI,
+    produção) vence o arquivo, para o ``.env`` não mascarar a configuração real.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:  # python-dotenv é opcional; sem ele, só o ambiente conta
+        logger.debug("python-dotenv ausente; .env não será carregado")
+        return
+    alvo = caminho or (ROOT / ".env")
+    if alvo.exists():
+        load_dotenv(alvo, override=False)
+
+
+carregar_env()
+
 # Versão do texto determinístico do ``MockProvider``. Incrementar quando as
 # respostas do mock mudarem invalida as entradas antigas do cache em disco.
 # v3: a dica ``task`` passou a ser repassada ao provider, então as respostas do
@@ -519,10 +543,33 @@ def _parse_retry_hint(message: str) -> float | None:
     return minutos * 60.0 + float(match.group(2))
 
 
+_PLACEHOLDERS = {
+    "sua_chave_real_aqui",
+    "sua-chave-aqui",
+    "your_api_key_here",
+    "changeme",
+    "todo",
+    "xxx",
+    "none",
+    "null",
+}
+
+
+def _placeholder(valor: str | None) -> bool:
+    """Detecta valores de exemplo no ``.env``, que não são chaves de verdade.
+
+    Sem isto, um ``.env`` recém-copiado do ``.env.example`` faria o provider
+    parecer disponível: o roteador tentaria uma chamada real, gastaria uma
+    tentativa e voltaria 401 — pior que simplesmente não ter a chave.
+    """
+    if not valor or not valor.strip():
+        return True
+    return valor.strip().lower() in _PLACEHOLDERS
+
+
 @dataclass
 class OpenAICompatibleProvider:
     """Cliente HTTP para endpoints compatíveis com ``/chat/completions``."""
-
     model: str = "gpt-4o-mini"
     base_url: str = "https://api.openai.com/v1"
     api_key: str | None = None
@@ -546,7 +593,7 @@ class OpenAICompatibleProvider:
         self.base_url = self.base_url.rstrip("/")
 
     def available(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_key) and not _placeholder(self.api_key)
 
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> str:
         if not self.available():
@@ -737,14 +784,20 @@ class TaskRouter:
     modelos — os que passaram no benchmark para aquela função — e o roteador
     desce a lista quando um modelo falha.
 
-    A cascata tem dois níveis: primeiro os modelos da categoria; se todos
-    falharem, a ``cadeia_global`` (por fim o mock, que sempre responde).
+    A cascata tem três níveis: primeiro os modelos da categoria; se todos
+    falharem, o ``coringa`` (Gemini, a última API real); e, só se o coringa não
+    estiver configurado ou também falhar, a ``cadeia_global`` — cujo último elo
+    é o ``mock``, que sempre responde (CI e emergência total).
     """
 
     rotas: dict[str, list[OpenAICompatibleProvider]] = field(default_factory=dict)
     mapa_tarefas: dict[str, str] = field(default_factory=lambda: dict(TAREFA_PARA_CATEGORIA))
     presets: dict[str, int] = field(default_factory=dict)
     cadeia_global: list[LLMProvider] = field(default_factory=list)
+    # Coringa: o último modelo real antes do mock. Um único provider de reserva
+    # que serve a qualquer tarefa, então uma categoria inteira sem cota (ou sem
+    # chave) ainda produz texto científico real em vez de cair no mock.
+    coringa: LLMProvider | None = None
 
     def rota(self, task: str | None) -> list[LLMProvider]:
         """Providers candidatos para a tarefa, na ordem de preferência.
@@ -758,7 +811,10 @@ class TaskRouter:
         if disponiveis:
             return disponiveis
         # Sem rota utilizável: a categoria pode não ter sido configurada, ou
-        # nenhuma chave da categoria está presente. Cai para a cadeia global.
+        # nenhuma chave da categoria está presente. O coringa assume; se ele
+        # também não estiver disponível, resta a cadeia global.
+        if self.coringa is not None and self.coringa.available():
+            return [self.coringa]
         return [p for p in self.cadeia_global if p.available()]
 
     def max_tokens(self, task: str | None) -> int:
@@ -766,7 +822,14 @@ class TaskRouter:
 
     @property
     def ativo(self) -> bool:
-        """Há ao menos um provider real roteável? (mock não conta)"""
+        """Há ao menos um provider real roteável? (mock não conta)
+
+        O coringa conta: com só a ``GEMINI_API_KEY`` configurada, o roteamento
+        ainda é útil — o Gemini atende todas as tarefas e o ``max_tokens`` por
+        categoria continua valendo.
+        """
+        if self.coringa is not None and self.coringa.available():
+            return True
         return any(
             isinstance(p, OpenAICompatibleProvider) and p.available()
             for lista in self.rotas.values()
@@ -821,8 +884,25 @@ def build_task_router(
         if isinstance(bloco, dict) and "max_tokens" in bloco
     }
 
+    # Coringa: o último modelo real, tentado depois de esgotar a categoria e
+    # antes do mock. É excluído da cadeia global abaixo para não ser tentado
+    # duas vezes na mesma chamada.
+    fallback_cfg = catalogo.get("fallback_global") or {}
+    nome_coringa = fallback_cfg.get("coringa")
+    coringa: LLMProvider | None = None
+    if nome_coringa and nome_coringa != "mock":
+        coringa = provider_para(nome_coringa)
+        if coringa is not None and not coringa.available():
+            logger.info(
+                "[LLM Router] coringa %s configurado, mas %s não está definida; "
+                "a cadeia terminará no mock",
+                nome_coringa, getattr(coringa, "api_key_env", "?") or "a chave",
+            )
+
     cadeia_global: list[LLMProvider] = []
-    for nome in (catalogo.get("fallback_global") or {}).get("cadeia", []):
+    for nome in fallback_cfg.get("cadeia", []):
+        if nome == nome_coringa:
+            continue  # o coringa já tem o seu nível próprio na cascata
         if nome == "mock":
             cadeia_global.append(MockProvider())
             continue
@@ -835,6 +915,7 @@ def build_task_router(
         cadeia_global.append(MockProvider())
 
     return TaskRouter(
+        coringa=coringa,
         rotas=rotas,
         mapa_tarefas=dict(catalogo.get("tarefas_para_categoria") or TAREFA_PARA_CATEGORIA),
         presets=presets,
@@ -887,23 +968,35 @@ class LLMClient:
                 f"{cat}={'|'.join(getattr(p, 'name', '?') for p in lista)}"
                 for cat, lista in sorted(self.router.rotas.items())
             )
-            return f"v{CACHE_VERSION}:router:{cadeia}"
+            # O coringa entra na assinatura: sem isso, a resposta real dele numa
+            # execução seria devolvida como cache para a execução em que só o
+            # mock está configurado (e vice-versa).
+            nome_coringa = getattr(self.router.coringa, "name", "")
+            return f"v{CACHE_VERSION}:router:{cadeia}|coringa={nome_coringa}"
         cadeia = ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
         return f"v{CACHE_VERSION}:{cadeia}"
 
     def _providers_para(self, task: str | None) -> list[LLMProvider]:
-        """Cadeia de providers a usar: rota da tarefa + cadeia global.
+        """Cadeia de providers a usar, na ordem estrita da cascata.
 
-        A cascata tem dois níveis: primeiro os modelos da categoria (os que
-        passaram no benchmark para aquela função); se todos falharem, a cadeia
-        global assume — e o seu último elo é o ``mock``, que sempre responde.
-        Sem o segundo nível, um dia ruim de cota em todos os modelos da
-        categoria derrubaria o pipeline inteiro.
+        Nível 1: modelos da categoria (os validados no benchmark para a função).
+        Nível 2: o coringa (Gemini), a última API real — se a categoria inteira
+        estourou a cota, ainda assim sai texto científico de verdade.
+        Nível 3: a cadeia global, cujo último elo é o ``mock`` (CI e emergência).
+
+        Sem o nível 2, um dia ruim de cota derrubaria o pipeline direto no mock,
+        que não produz ciência — só estrutura.
         """
         if not (self.router and self.router.ativo):
             return self.providers
         cadeia = list(self.router.rota(task))
         vistos = {id(p) for p in cadeia}
+        coringa = self.router.coringa
+        # O coringa só entra se tiver chave: sem ela, não faz sentido gastar uma
+        # tentativa (nem poluir o log com "indisponível").
+        if coringa is not None and coringa.available() and id(coringa) not in vistos:
+            cadeia.append(coringa)
+            vistos.add(id(coringa))
         for p in self.router.cadeia_global:
             if id(p) not in vistos:
                 cadeia.append(p)
@@ -936,6 +1029,7 @@ class LLMClient:
 
         errors: list[str] = []
         roteando = bool(self.router and self.router.ativo)
+        coringa = self.router.coringa if roteando else None
         for provider in self._providers_para(task):
             if not provider.available():
                 errors.append(f"{provider.name}: indisponível")
@@ -953,6 +1047,12 @@ class LLMClient:
                         self.cache.put(key, text, provider.name)
                     self._record(prompt, text, provider.name, cached=False, latency=latency)
                     if roteando:
+                        if coringa is not None and provider is coringa:
+                            logger.info(
+                                "[LLM Router] Fallback acionado: usando GEMINI_API_KEY "
+                                "como coringa para task=%s",
+                                task or "?",
+                            )
                         logger.info(
                             "[LLM Router] task=%s → %s (tempo: %.1fs)",
                             task or "?", provider.name, latency,

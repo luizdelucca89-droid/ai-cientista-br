@@ -336,17 +336,31 @@ para cada tarefa — como um mistura-de-especialistas (MoE).
 | `alto_volume` | score, compliance, voting | `mistral/ministral-8b-latest` | rápido e barato |
 | `multimodal` | satellite_features, chart_reading | `nvidia/nemotron-3.5-super-vl:free` | aceita imagem |
 
-**Fallback em cascata.** Se um modelo falha com 429, 5xx ou timeout, o roteador
-pula imediatamente para o próximo da lista — sem gastar backoff no mesmo modelo.
-Se todos os modelos da categoria falharem, entra a cadeia global
-(`gemini-flash-latest` → `mock`), então o pipeline nunca para por falta de cota.
+**Fallback em cascata.** A ordem é estrita e tem três níveis:
 
 ```
-task=experiment_plan
-  └─ mistral/codestral-latest     429 ─┐
-       └─ mistral/voxtral-small     ok  ← resposta
-  (se todos falharem) → gemini-flash-latest → mock
+1. Modelo específico da tarefa   (ex.: codestral-latest para código)
+2. Alternativa da mesma tarefa   (ex.: voxtral-small-latest, nemotron-lightning)
+3. 🃏 Coringa: gemini-flash-latest (GEMINI_API_KEY) — a última API real
+4. mock                          (só se o coringa não estiver configurado ou também falhar)
 ```
+
+O nível 3 é o seguro contra um dia ruim de cota: se **todos** os modelos da
+categoria estouram, o coringa ainda devolve texto científico real, em vez de o
+pipeline cair no mock (que produz estrutura, não ciência). O mock fica restrito
+a CI e emergência total — sem ele, um teste offline ou uma queda geral de rede
+derrubaria a execução inteira.
+
+Se a `GEMINI_API_KEY` não estiver definida, o nível 3 é pulado e a cadeia
+termina no mock, com um aviso explícito no log:
+
+```
+[LLM Router] Fallback acionado: usando GEMINI_API_KEY como coringa para task=hypotheses
+[LLM Router] task=experiment_plan: mistral/codestral-latest falhou (HTTP 429); próximo da cascata
+```
+
+Cada modelo é tentado **uma vez** antes de descer a cascata — falha transitória
+(429, 5xx, timeout) não gasta backoff no mesmo modelo.
 
 **`max_tokens` por tarefa.** O benchmark mostrou que 512 tokens truncavam
 modelos de raciocínio (gastam o orçamento em chain-of-thought antes do JSON).
@@ -363,6 +377,20 @@ O log mostra a decisão:
 Sem `config.modelos.json`, ou com `--provider mock`, o roteador fica desligado e
 o cliente usa a cadeia única de antes. Para desligar explicitamente, aponte
 `llm.catalogo_modelos` para um caminho inexistente.
+
+**Onde ficam as chaves.** Em `.env` na raiz (que está no `.gitignore`). Copie o
+modelo e preencha:
+
+```bash
+cp .env.example .env
+# edite .env e ponha GEMINI_API_KEY=sua_chave
+```
+
+O `.env` é carregado automaticamente na importação de `llm_providers` (com
+`override=False`: uma variável já exportada no shell vence o arquivo, para não
+mascarar a configuração de CI/produção). Valores de exemplo como
+`sua_chave_real_aqui` são tratados como ausentes, então um `.env` recém-copiado
+não finge ter chave nem gasta uma tentativa com 401.
 
 ---
 
