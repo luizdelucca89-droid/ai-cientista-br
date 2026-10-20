@@ -14,5 +14,7 @@ selenium>=4.15.0
 # Desenvolvimento / testes
 pytest>=7.4.0
 
-# Opcional: interface web (descomente para usar a UI Streamlit)
-# streamlit>=1.28.0
+# Interface web (Streamlit) e utilitários da UI.
+streamlit>=1.28.0
+plotly>=5.18.0
+python-dotenv>=1.0.0

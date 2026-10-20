@@ -16,6 +16,11 @@ from integrations.brazilian_apis import (
     SIDRAAPI,
     SciELOAPI,
 )
+from integrations.publishing import (
+    IntegrityError,
+    SubmissionPackage,
+    generate_submission_package,
+)
 
 __all__ = [
     "BDTDAPI",
@@ -26,10 +31,13 @@ __all__ = [
     "DataverseAPI",
     "IBGEAPI",
     "INPEAPI",
+    "IntegrityError",
     "KaggleBRAPI",
     "LattesAPI",
     "OpenAlexAPI",
     "PortalTransparenciaAPI",
     "SIDRAAPI",
     "SciELOAPI",
+    "SubmissionPackage",
+    "generate_submission_package",
 ]

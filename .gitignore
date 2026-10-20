@@ -16,3 +16,6 @@ outputs/
 # Selenium
 chromedriver
 *.log
+
+# Segredos locais da interface (app.py)
+.env
