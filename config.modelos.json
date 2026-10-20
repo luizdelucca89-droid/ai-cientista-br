@@ -1,0 +1,96 @@
+{
+  "_comentario": "Modelos gratuitos validados contra a tarefa real do pipeline (desenho experimental em JSON, PT-BR). Gerado por benchmark_models.py em 2026-10-19. Ver MODELOS_VALIDADOS.md para a analise. Roteie por tarefa: a dica task= ja existe nos agentes.",
+  "roteamento_por_tarefa": {
+    "raciocinio": {
+      "tarefas": ["gap", "hypotheses", "review", "novelty"],
+      "preferencia": ["nvidia/nemotron-3-ultra-550b-a55b", "gemini-3.5-flash"]
+    },
+    "redacao": {
+      "tarefas": ["section", "translate"],
+      "preferencia": ["gemini-flash-latest", "google/gemma-4-31b-it", "mistral/ministral-14b-latest"]
+    },
+    "codigo": {
+      "tarefas": ["experiment_plan", "analysis", "auto_debug"],
+      "preferencia": ["mistral/codestral-latest", "cohere/north-mini-code:free", "nvidia/nemotron-3.5-lightning-30b-a3b"]
+    },
+    "volume": {
+      "tarefas": ["score", "compliance"],
+      "preferencia": ["mistral/ministral-8b-latest", "nvidia/nemotron-3.5-super-vl:free", "minimax/minimax-m3.1-flash:free"]
+    },
+    "validacao_cruzada": {
+      "tarefas": ["review"],
+      "preferencia": ["xingchen-agi/xing4.0-29b-a4b:free", "z-ai/glm-5.3", "openai/gpt-oss-20b"]
+    }
+  },
+  "providers": [
+    {
+      "name": "nvidia",
+      "type": "openai_compatible",
+      "api_key_env": "NVIDIA_API_KEY",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "modelos_aprovados": [
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "nvidia/muse-glimmer-30b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        "z-ai/glm-5.3",
+        "openai/gpt-oss-20b",
+        "google/gemma-4-31b-it"
+      ]
+    },
+    {
+      "name": "mistral",
+      "type": "openai_compatible",
+      "api_key_env": "MISTRAL_API_KEY",
+      "base_url": "https://api.mistral.ai/v1",
+      "modelos_aprovados": [
+        "mistral/codestral-latest",
+        "mistral/voxtral-small-latest",
+        "mistral/ministral-14b-latest",
+        "mistral/ministral-8b-latest",
+        "mistral/ministral-3b-latest"
+      ]
+    },
+    {
+      "name": "gemini",
+      "type": "openai_compatible",
+      "api_key_env": "GEMINI_API_KEY",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "modelos_aprovados": [
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-latest"
+      ]
+    },
+    {
+      "name": "openrouter",
+      "type": "openai_compatible",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "modelos_aprovados": [
+        "cohere/north-mini-code:free",
+        "dots-studio/dots-3-note-preview:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "minimax/minimax-m3.1-flash:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "nvidia/nemotron-3.5-super-vl:free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
+        "xingchen-agi/xing4.0-29b-a4b:free"
+      ]
+    },
+    {
+      "name": "mock",
+      "type": "mock"
+    }
+  ],
+  "parametros": {
+    "temperature": 0.2,
+    "retries": 2,
+    "max_tokens_minimo": 2048,
+    "max_tokens_redator": 8192,
+    "pausa_entre_chamadas_s": 2.0
+  }
+}

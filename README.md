@@ -305,6 +305,22 @@ prompts para treinar. Para pesquisa com dados sensíveis, use um modelo local
 
 Para validar o pipeline sem gastar cota, use `--provider mock`.
 
+### Catálogo de modelos testados
+
+Cada modelo foi chamado com a tarefa real do pipeline (desenho experimental em
+JSON, PT-BR). O resultado está em **[MODELOS_VALIDADOS.md](MODELOS_VALIDADOS.md)**
+e, em formato legível por máquina, em `config.modelos.json`.
+
+```bash
+export OPENROUTER_API_KEY=... MISTRAL_API_KEY=... NVIDIA_API_KEY=nvapi-... GEMINI_API_KEY=...
+python benchmark_models.py --provider all
+```
+
+Destaques: `nvidia/nemotron-3-ultra-550b-a55b` (raciocínio, 5 s),
+`mistral/codestral-latest` (código, 1,1 s), `gemini-3.5-flash` (ciência, 8 s),
+`gemini-flash-latest` (redação longa). Reprovados por cota (429) não são falha
+do modelo — anote o motivo ao reexecutar.
+
 ---
 
 ## Arquitetura
