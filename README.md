@@ -321,6 +321,49 @@ Destaques: `nvidia/nemotron-3-ultra-550b-a55b` (raciocínio, 5 s),
 `gemini-flash-latest` (redação longa). Reprovados por cota (429) não são falha
 do modelo — anote o motivo ao reexecutar.
 
+### 🧠 Roteamento Inteligente de Modelos (MoE)
+
+Cada agente já declara o tipo do seu trabalho (`task=`), mas isso era ignorado:
+todo mundo usava o mesmo modelo, na mesma ordem. Agora o `LLMClient` lê o
+catálogo validado em `config.modelos.json` e escolhe o melhor modelo **gratuito**
+para cada tarefa — como um mistura-de-especialistas (MoE).
+
+| Categoria | Tarefas | Primeira escolha | Por quê |
+|---|---|---|---|
+| `raciocinio` | gap, hypotheses, novelty, review | `nvidia/nemotron-3-ultra-550b-a55b` | 550B MoE, forte em planejamento; 5 s |
+| `codigo` | experiment_plan, analysis, auto_debug | `mistral/codestral-latest` | especialista em código; 1,1 s |
+| `redacao` | section, translate, rebuttal | `gemini-flash-latest` | contexto longo e prosa PT-BR |
+| `alto_volume` | score, compliance, voting | `mistral/ministral-8b-latest` | rápido e barato |
+| `multimodal` | satellite_features, chart_reading | `nvidia/nemotron-3.5-super-vl:free` | aceita imagem |
+
+**Fallback em cascata.** Se um modelo falha com 429, 5xx ou timeout, o roteador
+pula imediatamente para o próximo da lista — sem gastar backoff no mesmo modelo.
+Se todos os modelos da categoria falharem, entra a cadeia global
+(`gemini-flash-latest` → `mock`), então o pipeline nunca para por falta de cota.
+
+```
+task=experiment_plan
+  └─ mistral/codestral-latest     429 ─┐
+       └─ mistral/voxtral-small     ok  ← resposta
+  (se todos falharem) → gemini-flash-latest → mock
+```
+
+**`max_tokens` por tarefa.** O benchmark mostrou que 512 tokens truncavam
+modelos de raciocínio (gastam o orçamento em chain-of-thought antes do JSON).
+Raciocínio e código recebem 4096; redação e alto volume, 2048. Tarefas com
+contrato JSON estrito também enviam `response_format={"type": "json_object"}`.
+
+O log mostra a decisão:
+
+```
+[LLM Router] task=hypotheses → nvidia/nemotron-3-ultra-550b-a55b (tempo: 5.0s)
+[LLM Router] task=experiment_plan: nvidia/nemotron-3-ultra-550b-a55b falhou (HTTP 429); próximo da cascata
+```
+
+Sem `config.modelos.json`, ou com `--provider mock`, o roteador fica desligado e
+o cliente usa a cadeia única de antes. Para desligar explicitamente, aponte
+`llm.catalogo_modelos` para um caminho inexistente.
+
 ---
 
 ## Arquitetura

@@ -31,13 +31,17 @@ def test_config_modelos_e_json_valido() -> None:
 def test_roteamento_cobre_as_tarefas_dos_agentes() -> None:
     """As tarefas roteadas devem cobrir as que os agentes realmente emitem."""
     dados = json.loads(CONFIG.read_text(encoding="utf-8"))
-    roteadas = {t for bloco in dados["roteamento_por_tarefa"].values() for t in bloco["tarefas"]}
+    mapa = dados["tarefas_para_categoria"]
+    roteadas = set(mapa)
     emitidas = set()
-    for arquivo in (RAIZ / "core" / "agents").glob("*.py"):
+    for arquivo in list((RAIZ / "core" / "agents").glob("*.py")) + [RAIZ / "core" / "rebuttal_engine.py"]:
         emitidas.update(re.findall(r'task="([a-z_]+)"', arquivo.read_text(encoding="utf-8")))
     assert emitidas, "nenhuma tarefa encontrada nos agentes"
     faltando = emitidas - roteadas
     assert not faltando, f"tarefas sem rota no config.modelos.json: {sorted(faltando)}"
+    # Toda categoria citada precisa existir em roteamento_por_tarefa.
+    for tarefa, categoria in mapa.items():
+        assert categoria in dados["roteamento_por_tarefa"], f"{tarefa} aponta para categoria inexistente: {categoria}"
 
 
 def test_providers_do_config_usam_variavel_de_ambiente() -> None:

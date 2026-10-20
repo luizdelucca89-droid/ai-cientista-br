@@ -105,17 +105,18 @@ compare — é o que dá robustez real ao ensemble:
 
 ## Recomendação de stack (roteada por tarefa)
 
-A dica `task=` já existe nos agentes (`gap`, `hypotheses`, `experiment_plan`,
-`analysis`, `section`, `translate`, `review`, `score`), mas hoje **só o provider
-mock a consome**. O ganho maior é fazer o `LLMClient` rotear por tarefa:
+A dica `task=` já existe nos agentes e agora é **consumida pelo `LLMClient`**
+(ver `TaskRouter` em `llm_providers/__init__.py`). A rota de cada categoria vem
+de `roteamento_por_tarefa` no `config.modelos.json`:
 
 ```
-raciocínio  (gap, hypotheses, review)      -> nemotron-3-ultra (NVIDIA) / gemini-3.5-flash
-redação     (section, translate)           -> gemini-flash-latest / gemma-4-31b-it
-código      (experiment_plan, auto_debug)  -> codestral-latest (1,1 s) / north-mini-code
-volume      (score, compliance)            -> ministral-8b-latest / nemotron-3.5-super-vl
-validação   (revisor crítico, 2ª opinião)  -> xing4.0 / glm-5.3 / gpt-oss-20b
-fallback                                   -> mock
+raciocinio  (gap, hypotheses, novelty, review)      -> nemotron-3-ultra (NVIDIA) / gemini-3.5-flash
+redacao     (section, translate, rebuttal)          -> gemini-flash-latest / gemma-4-31b-it
+codigo      (experiment_plan, analysis, auto_debug) -> codestral-latest (1,1 s) / north-mini-code
+alto_volume (score, compliance, voting)             -> ministral-8b-latest / nemotron-3.5-super-vl
+multimodal  (satellite_features, chart_reading)     -> nemotron-3.5-super-vl (NVIDIA/OpenRouter)
+validacao   (revisor critico, 2a opiniao)           -> xing4.0 / glm-5.3 / gpt-oss-20b
+fallback global                                     -> gemini-flash-latest -> mock
 ```
 
 ## Notas de operação

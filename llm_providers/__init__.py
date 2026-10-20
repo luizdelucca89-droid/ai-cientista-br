@@ -24,13 +24,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from core.utils import ensure_dir, sha256_text, setup_logger, utcnow_iso
+from core.utils import ROOT, ensure_dir, read_json, sha256_text, setup_logger, utcnow_iso
 
 logger = setup_logger(__name__)
 
 # Versão do texto determinístico do ``MockProvider``. Incrementar quando as
 # respostas do mock mudarem invalida as entradas antigas do cache em disco.
-CACHE_VERSION = 2
+# v3: a dica ``task`` passou a ser repassada ao provider, então as respostas do
+# mock por tipo de tarefa mudaram (antes caíam no builder de seção).
+CACHE_VERSION = 3
 
 # Alguns gateways (Cloudflare, na frente da Groq) bloqueiam clientes sem
 # User-Agent de navegador com o erro 1010.
@@ -559,6 +561,12 @@ class OpenAICompatibleProvider:
             "temperature": kwargs.get("temperature", self.temperature),
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
+        # response_format força JSON estruturado quando a tarefa exige (o
+        # roteador decide). Nem todo endpoint suporta; por isso é opcional e só
+        # entra quando pedido explicitamente.
+        response_format = kwargs.get("response_format")
+        if response_format:
+            payload["response_format"] = response_format
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
@@ -637,6 +645,204 @@ class LLMCache:
 
 
 # --------------------------------------------------------------------------- #
+# Roteamento por tarefa (MoE)
+# --------------------------------------------------------------------------- #
+# Mapeamento tarefa -> categoria. Espelha ``tarefas_para_categoria`` do
+# ``config.modelos.json``; é o fallback quando o config não define o mapeamento,
+# para que o roteador funcione mesmo com um config antigo ou parcial.
+TAREFA_PARA_CATEGORIA: dict[str, str] = {
+    "gap": "raciocinio",
+    "hypotheses": "raciocinio",
+    "novelty": "raciocinio",
+    "review": "raciocinio",
+    "section": "redacao",
+    "translate": "redacao",
+    "rebuttal": "redacao",
+    "rebuttal_response": "redacao",
+    "experiment_plan": "codigo",
+    "analysis": "codigo",
+    "auto_debug": "codigo",
+    "score": "alto_volume",
+    "compliance": "alto_volume",
+    "voting": "alto_volume",
+    "satellite_features": "multimodal",
+    "chart_reading": "multimodal",
+}
+
+# Categoria -> max_tokens. Raciocínio e código gastam o orçamento em
+# chain-of-thought antes de emitir o JSON: com 512 tokens o conteúdo voltava
+# vazio e o modelo era reprovado por truncamento (comprovado no benchmark).
+MAX_TOKENS_POR_CATEGORIA: dict[str, int] = {
+    "raciocinio": 4096,
+    "codigo": 4096,
+    "redacao": 2048,
+    "alto_volume": 2048,
+    "multimodal": 2048,
+    "validacao_cruzada": 2048,
+    "padrao": 2048,
+}
+
+# Tarefas cujo contrato de saída é JSON estrito; força ``json_object``.
+TAREFAS_JSON: frozenset[str] = frozenset(
+    {"gap", "hypotheses", "novelty", "review", "experiment_plan", "analysis",
+     "auto_debug", "score", "compliance", "voting", "satellite_features", "chart_reading"}
+)
+
+# Categoria de raciocínio é a mais exigente; usada quando não há tarefa.
+CATEGORIA_PADRAO = "raciocinio"
+
+
+def categoria_da_tarefa(task: str | None, mapa: dict[str, str] | None = None) -> str:
+    """Traduz o nome da tarefa na categoria de roteamento."""
+    if not task:
+        return CATEGORIA_PADRAO
+    return (mapa or TAREFA_PARA_CATEGORIA).get(task, CATEGORIA_PADRAO)
+
+
+def max_tokens_da_tarefa(task: str | None, presets: dict[str, int] | None = None) -> int:
+    """max_tokens adequado à categoria da tarefa (nunca abaixo do mínimo)."""
+    valores = dict(MAX_TOKENS_POR_CATEGORIA)
+    if presets:
+        valores.update(presets)
+    categoria = categoria_da_tarefa(task)
+    return max(valores.get(categoria, valores["padrao"]), MAX_TOKENS_POR_CATEGORIA["padrao"])
+
+
+def _resumo_erro(exc: Exception) -> str:
+    """Primeira linha do erro, curta o bastante para o log do roteador."""
+    texto = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+    return texto[:120]
+
+
+def _falha_transitoria(exc: Exception) -> bool:
+    """Erro que justifica pular para o próximo modelo da cascata.
+
+    429 (rate limit), 5xx (instabilidade) e timeouts são do momento, não do
+    pedido: insistir no mesmo modelo só queima o tempo que o próximo da lista
+    levaria para responder. Erros de contrato (JSON inválido, chave ausente)
+    não entram aqui — nesses, repetir o mesmo modelo pode resolver.
+    """
+    texto = str(exc).lower()
+    marcadores = ("429", "rate limit", "500", "502", "503", "504", "timed out", "timeout", "connection")
+    return any(m in texto for m in marcadores)
+
+
+@dataclass
+class TaskRouter:
+    """Escolhe o provider por tarefa, com fallback em cascata.
+
+    Antes, todo agente usava a mesma cadeia de providers, na mesma ordem: o
+    redator (a tarefa mais pesada) rodava no modelo mais leve e estourava o
+    orçamento de tokens. Aqui, cada categoria de tarefa tem a sua lista de
+    modelos — os que passaram no benchmark para aquela função — e o roteador
+    desce a lista quando um modelo falha.
+
+    A cascata tem dois níveis: primeiro os modelos da categoria; se todos
+    falharem, a ``cadeia_global`` (por fim o mock, que sempre responde).
+    """
+
+    rotas: dict[str, list[OpenAICompatibleProvider]] = field(default_factory=dict)
+    mapa_tarefas: dict[str, str] = field(default_factory=lambda: dict(TAREFA_PARA_CATEGORIA))
+    presets: dict[str, int] = field(default_factory=dict)
+    cadeia_global: list[LLMProvider] = field(default_factory=list)
+
+    def rota(self, task: str | None) -> list[LLMProvider]:
+        """Providers candidatos para a tarefa, na ordem de preferência.
+
+        Providers sem chave configurada são descartados aqui, para não gastar
+        uma tentativa com um ``RuntimeError`` de chave ausente.
+        """
+        categoria = categoria_da_tarefa(task, self.mapa_tarefas)
+        candidatos = self.rotas.get(categoria) or []
+        disponiveis = [p for p in candidatos if p.available()]
+        if disponiveis:
+            return disponiveis
+        # Sem rota utilizável: a categoria pode não ter sido configurada, ou
+        # nenhuma chave da categoria está presente. Cai para a cadeia global.
+        return [p for p in self.cadeia_global if p.available()]
+
+    def max_tokens(self, task: str | None) -> int:
+        return max_tokens_da_tarefa(task, self.presets)
+
+    @property
+    def ativo(self) -> bool:
+        """Há ao menos um provider real roteável? (mock não conta)"""
+        return any(
+            isinstance(p, OpenAICompatibleProvider) and p.available()
+            for lista in self.rotas.values()
+            for p in lista
+        )
+
+
+def build_task_router(
+    catalogo: dict[str, Any],
+    providers_por_nome: dict[str, LLMProvider],
+) -> TaskRouter | None:
+    """Monta o :class:`TaskRouter` a partir do catálogo ``config.modelos.json``.
+
+    ``providers_por_nome`` são os providers já instanciados pelo
+    :func:`build_llm_client` (uma instância por ``name`` de provider). O
+    roteador cria, para cada modelo do catálogo, um provider próprio — porque
+    dois modelos podem compartilhar o mesmo provider mas ter nomes distintos.
+    """
+    rotas_cfg = catalogo.get("roteamento_por_tarefa") or {}
+    modelos_cfg = catalogo.get("modelos") or {}
+    if not rotas_cfg or not modelos_cfg:
+        return None
+
+    def provider_para(modelo: str) -> OpenAICompatibleProvider | None:
+        meta = modelos_cfg.get(modelo)
+        if not meta:
+            logger.warning("[LLM Router] modelo %s não está em 'modelos'; ignorado", modelo)
+            return None
+        base = providers_por_nome.get(meta.get("provider", ""))
+        return OpenAICompatibleProvider(
+            name=modelo,
+            # ``model`` permite que o id enviado à API difira da chave do
+            # catálogo (a Mistral não aceita o prefixo "mistral/"; o NIM usa
+            # "meta/muse-glimmer-30b").
+            model=meta.get("model", modelo),
+            base_url=meta.get("base_url", getattr(base, "base_url", "https://api.openai.com/v1")),
+            api_key_env=meta.get("api_key_env"),
+            timeout=getattr(base, "timeout", 60),
+            temperature=getattr(base, "temperature", 0.2),
+            max_tokens=getattr(base, "max_tokens", 2048),
+        )
+
+    rotas: dict[str, list[OpenAICompatibleProvider]] = {}
+    for categoria, modelos in rotas_cfg.items():
+        lista = [p for p in (provider_para(m) for m in modelos) if p is not None]
+        if lista:
+            rotas[categoria] = lista
+
+    presets = {
+        categoria: int(bloco["max_tokens"])
+        for categoria, bloco in (catalogo.get("presets") or {}).items()
+        if isinstance(bloco, dict) and "max_tokens" in bloco
+    }
+
+    cadeia_global: list[LLMProvider] = []
+    for nome in (catalogo.get("fallback_global") or {}).get("cadeia", []):
+        if nome == "mock":
+            cadeia_global.append(MockProvider())
+            continue
+        meta = modelos_cfg.get(nome)
+        if meta:
+            p = provider_para(nome)
+            if p is not None:
+                cadeia_global.append(p)
+    if not any(isinstance(p, MockProvider) for p in cadeia_global):
+        cadeia_global.append(MockProvider())
+
+    return TaskRouter(
+        rotas=rotas,
+        mapa_tarefas=dict(catalogo.get("tarefas_para_categoria") or TAREFA_PARA_CATEGORIA),
+        presets=presets,
+        cadeia_global=cadeia_global,
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Cliente com fallback
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -645,6 +851,7 @@ class LLMClient:
 
     providers: list[LLMProvider] = field(default_factory=list)
     cache: LLMCache | None = None
+    router: TaskRouter | None = None
     temperature: float = 0.2
     retries: int = 2
     history: list[dict[str, Any]] = field(default_factory=list)
@@ -670,14 +877,56 @@ class LLMClient:
         A versão entra na chave porque o texto do ``mock`` é código nosso: ao
         corrigi-lo, as respostas antigas em disco ficariam obsoletas e voltariam
         a aparecer nas execuções seguintes.
+
+        Com roteador ativo, a assinatura reflete a rota de cada categoria: sem
+        isso, a resposta do ``gemini`` obtida numa categoria seria devolvida
+        como cache para a categoria que deveria usar o ``codestral``.
         """
+        if self.router and self.router.ativo:
+            cadeia = ";".join(
+                f"{cat}={'|'.join(getattr(p, 'name', '?') for p in lista)}"
+                for cat, lista in sorted(self.router.rotas.items())
+            )
+            return f"v{CACHE_VERSION}:router:{cadeia}"
         cadeia = ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
         return f"v{CACHE_VERSION}:{cadeia}"
 
+    def _providers_para(self, task: str | None) -> list[LLMProvider]:
+        """Cadeia de providers a usar: rota da tarefa + cadeia global.
+
+        A cascata tem dois níveis: primeiro os modelos da categoria (os que
+        passaram no benchmark para aquela função); se todos falharem, a cadeia
+        global assume — e o seu último elo é o ``mock``, que sempre responde.
+        Sem o segundo nível, um dia ruim de cota em todos os modelos da
+        categoria derrubaria o pipeline inteiro.
+        """
+        if not (self.router and self.router.ativo):
+            return self.providers
+        cadeia = list(self.router.rota(task))
+        vistos = {id(p) for p in cadeia}
+        for p in self.router.cadeia_global:
+            if id(p) not in vistos:
+                cadeia.append(p)
+                vistos.add(id(p))
+        return cadeia or self.providers
+
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
         temperature = float(kwargs.pop("temperature", self.temperature))
+        task = kwargs.pop("task", None)
+        # max_tokens por categoria: raciocínio/código precisam de espaço para o
+        # chain-of-thought antes do JSON. Um valor explícito do chamador vence.
+        if "max_tokens" not in kwargs and self.router and self.router.ativo:
+            kwargs["max_tokens"] = self.router.max_tokens(task)
+        # response_format só é passado quando a tarefa tem contrato JSON estrito.
+        # Fora desses casos, pedir json_object a um endpoint que não suporta
+        # (ou a um texto livre) causaria erro ou saída degradada.
+        if task in TAREFAS_JSON and "response_format" not in kwargs:
+            kwargs["response_format"] = {"type": "json_object"}
+        # A tarefa entra na chave explicitamente: duas categorias podem gerar os
+        # mesmos kwargs (mesmo max_tokens) e, sem isso, a resposta de uma seria
+        # devolvida como cache para a outra — servindo ao agente errado.
         key = sha256_text(
-            f"{self._signature()}||{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}"
+            f"{self._signature()}||task={task}||{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}"
         )
         if self.cache:
             hit = self.cache.get(key)
@@ -686,24 +935,43 @@ class LLMClient:
                 return LLMResponse(text=hit[0], provider=hit[1], cached=True)
 
         errors: list[str] = []
-        for provider in self.providers:
+        roteando = bool(self.router and self.router.ativo)
+        for provider in self._providers_para(task):
             if not provider.available():
                 errors.append(f"{provider.name}: indisponível")
                 continue
             for attempt in range(self.retries + 1):
                 start = time.perf_counter()
                 try:
-                    text = provider.complete(prompt, system=system, temperature=temperature, **kwargs)
+                    # ``task`` é repassado ao provider: o mock escolhe o
+                    # builder pelo tipo de tarefa; os reais o ignoram.
+                    text = provider.complete(
+                        prompt, system=system, temperature=temperature, task=task, **kwargs
+                    )
                     latency = time.perf_counter() - start
                     if self.cache:
                         self.cache.put(key, text, provider.name)
                     self._record(prompt, text, provider.name, cached=False, latency=latency)
+                    if roteando:
+                        logger.info(
+                            "[LLM Router] task=%s → %s (tempo: %.1fs)",
+                            task or "?", provider.name, latency,
+                        )
                     return LLMResponse(text=text, provider=provider.name, latency_s=latency)
                 except Exception as exc:  # noqa: BLE001 - fallback deliberado
                     errors.append(f"{provider.name} (tentativa {attempt + 1}): {exc}")
                     logger.warning("Provider %s falhou: %s", provider.name, exc)
                     with self._lock:
                         self.failures[provider.name] = self.failures.get(provider.name, 0) + 1
+                    # Em modo roteado, a cascata é a redundância: falha transitória
+                    # (429, 5xx, timeout) pula direto para o próximo modelo, em vez
+                    # de gastar segundos de backoff no mesmo modelo.
+                    if roteando and _falha_transitoria(exc):
+                        logger.info(
+                            "[LLM Router] task=%s: %s falhou (%s); próximo da cascata",
+                            task or "?", provider.name, _resumo_erro(exc),
+                        )
+                        break
                     if attempt < self.retries:
                         espera = self._backoff(exc, attempt)
                         # Se a API pede mais do que vale a pena esperar (ex.: teto
@@ -855,9 +1123,35 @@ def build_llm_client(config: dict[str, Any], use_cache: bool | None = None) -> L
 
     if not providers:
         providers.append(MockProvider())
+
+    # Roteador por tarefa: lê o catálogo validado (config.modelos.json) e monta
+    # a rota de cada categoria. Só entra quando a cadeia configurada tem ao menos
+    # um provider real: se o usuário pediu explicitamente ``mock`` (testes,
+    # validação offline), rotear para APIs de rede seria ignorar a configuração —
+    # e faria os testes dependerem de cota e de rede.
+    router: TaskRouter | None = None
+    tem_provider_real = any(not isinstance(p, MockProvider) for p in providers)
+    catalogo_path = llm_cfg.get("catalogo_modelos")
+    if catalogo_path is None:
+        candidato = ROOT / "config.modelos.json"
+        catalogo_path = candidato if candidato.exists() else None
+    if catalogo_path and tem_provider_real:
+        catalogo = read_json(catalogo_path, default={}) or {}
+        por_nome = {getattr(p, "name", ""): p for p in providers}
+        router = build_task_router(catalogo, por_nome)
+        if router and router.ativo:
+            logger.info(
+                "Roteamento por tarefa ativo: %s categorias (%s modelos)",
+                len(router.rotas),
+                sum(len(v) for v in router.rotas.values()),
+            )
+        else:
+            router = None
+
     return LLMClient(
         providers=providers,
         cache=cache,
+        router=router,
         temperature=float(llm_cfg.get("temperature", 0.2)),
         retries=int(llm_cfg.get("retries", 2)),
     )
