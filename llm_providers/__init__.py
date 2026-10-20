@@ -131,19 +131,13 @@ def _mock_novelty(prompt: str, seed: int) -> str:
 
 
 def _mock_compliance(prompt: str, seed: int) -> str:
-    texto = prompt.lower()
-    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "divulga_uso_ia": True,
         "tem_limitacoes": True,
         "tem_referencias": True,
         "tem_dados_reprodutiveis": True,
         "problemas": [
-            (
-                "Validade externa limitada pela cobertura temporal e municipal."
-                if dados_reais
-                else "Validade externa limitada pelo uso de dados sintéticos."
-            )
+            "Validade externa limitada pela cobertura temporal e municipal."
         ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
@@ -206,7 +200,7 @@ def _mock_experiment_plan(prompt: str, seed: int) -> str:
     plan = {
         "objetivo": "Comparar modelos de aprendizado de máquina contra linhas de base estatísticas.",
         "desenho": "comparativo controlado com validação cruzada temporal",
-        "amostra": "série sintética reprodutível calibrada por parâmetros públicos (seed fixa)",
+        "amostra": "observações públicas brasileiras reais, coletadas ao vivo das APIs",
         "pre_processamento": ["padronização", "tratamento de valores ausentes", "janelas deslizantes"],
         "modelos": [
             {"nome": "baseline_estatistico", "tipo": "estatistico"},
@@ -216,7 +210,7 @@ def _mock_experiment_plan(prompt: str, seed: int) -> str:
         ],
         "metricas": ["acuracia", "f1_score", "auc_roc", "rmse"],
         "testes_estatisticos": ["teste_t_pareado", "wilcoxon", "intervalo_confianca_bootstrap"],
-        "limitacoes": ["dados sintéticos", "ausência de validação externa"],
+        "limitacoes": ["cobertura temporal limitada", "ausência de validação externa"],
         "reprodutibilidade": {"seed": 42, "versoes_fixas": True},
     }
     return json.dumps(plan, ensure_ascii=False, indent=2)
@@ -236,32 +230,20 @@ def _mock_analysis(prompt: str, seed: int) -> str:
 def _mock_review(prompt: str, seed: int) -> str:
     """Parecer determinístico que varia com a seed, como um revisor real variaria.
 
-    As críticas precisam fazer sentido para o manuscrito recebido. Se ele descreve
-    observações reais com corte temporal, acusar "dados sintéticos" ou "divisão sem
-    dependência temporal" seria um parecer falso.
+    As críticas precisam fazer sentido para o manuscrito recebido: o pipeline só
+    produz manuscritos sobre observações reais com corte temporal, então o parecer
+    nunca deve acusar dados sintéticos nem divisão sem dependência temporal.
     """
-    texto = prompt.lower()
-    dados_reais = "observações reais" in texto or "infodengue" in texto
-    split_temporal = "temporal" in texto and "treino no passado" in texto
-
     pareceres = ["aceitar com revisões", "revisões maiores", "aceitar com revisões", "aceitar", "revisões maiores"]
     fraquezas = [
-        (
-            "A cobertura temporal é curta, o que limita a generalização entre anos."
-            if dados_reais
-            else "Dados sintéticos limitam a validade externa."
-        ),
+        "A cobertura temporal é curta, o que limita a generalização entre anos.",
         "Ausência de análise de sensibilidade a hiperparâmetros.",
         "Não há comparação com métodos do estado da arte recentes.",
         "O tamanho amostral não é justificado por análise de poder.",
         "Métricas agregadas escondem desempenho em subgrupos.",
     ]
     erros = [
-        (
-            "O desempenho não é testado em municípios deixados de fora do treino."
-            if split_temporal
-            else "A divisão treino/teste não considera dependência temporal."
-        ),
+        "O desempenho não é testado em municípios deixados de fora do treino.",
         "Não há correção para comparações múltiplas.",
         "A seleção de features pode ter vazamento de informação.",
     ]
@@ -294,8 +276,6 @@ def _mock_review(prompt: str, seed: int) -> str:
 
 def _mock_score(prompt: str, seed: int) -> str:
     score = 0.72 + (seed % 20) / 100.0
-    texto = prompt.lower()
-    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "score": round(min(score, 0.95), 3),
         "criterios": {
@@ -306,11 +286,7 @@ def _mock_score(prompt: str, seed: int) -> str:
             "aderencia_abnt": 0.75,
         },
         "problemas": [
-            (
-                "Validade externa limitada pela cobertura temporal e municipal."
-                if dados_reais
-                else "Validade externa limitada por dados sintéticos."
-            )
+            "Validade externa limitada pela cobertura temporal e municipal."
         ],
         "aprovado": True,
     }
@@ -320,26 +296,19 @@ def _mock_score(prompt: str, seed: int) -> str:
 def _descricao_da_base(resultado: dict[str, Any] | None) -> tuple[str, str]:
     """Devolve (frase de origem, frase de partição) fiéis aos metadados.
 
-    O texto do mock precisa acompanhar o que o pipeline realmente fez. Antes ele
-    afirmava "base sintética" e "divisão estratificada" mesmo quando o experimento
-    rodou sobre observações reais do InfoDengue com corte temporal.
+    O texto do mock precisa acompanhar o que o pipeline realmente fez. O runner
+    só aceita observações reais, então a frase de origem cita a fonte e o número
+    de registros; a partição é sempre temporal.
     """
     dataset = (resultado or {}).get("dataset") or {}
-    tipo = dataset.get("tipo")
     split = dataset.get("split")
-    origem = dataset.get("origem") or ""
+    origem = dataset.get("origem") or "fonte pública não declarada"
     n = dataset.get("n_amostras")
 
-    if tipo == "dados_reais":
-        base = f"A base é de observações reais ({origem})"
-        if n:
-            base += f", com {n} registros"
-        base += "."
-    else:
-        base = (
-            "A base é sintética e reprodutível (seed fixa), inspirada em séries "
-            "públicas brasileiras."
-        )
+    base = f"A base é de observações reais ({origem})"
+    if n:
+        base += f", com {n} registros"
+    base += "."
 
     if split == "temporal":
         particao = (

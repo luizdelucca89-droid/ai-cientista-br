@@ -133,6 +133,45 @@ print(results["phases"]["artefatos"]["final_paper"])      # caminho do PDF
 
 ---
 
+## 🖥️ Interface gráfica
+
+A UI Streamlit dispara o mesmo pipeline e permite baixar os artefatos sem tocar no terminal.
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Três abas:
+
+- **🔬 Nova pesquisa** — escolhe um tema com fonte pública conhecida (dengue, desmatamento, agricultura, educação), seleciona o provider de LLM e roda o ciclo. Ao final, mostra as métricas reais por modelo, o gráfico interativo de F1/AUC e botões para baixar `paper.pdf`, `paper.tex`, `paper.md` e o pacote de submissão.
+- **📚 Histórico** — lê a memória SQLite, lista os ciclos com data, tópico, status, score e a fonte de dados real, e permite baixar os artefatos de qualquer ciclo anterior.
+- **⚙️ Configurações** — grava `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `SCIELO_TOKEN` e `ARXIV_USERNAME` em `.env` (que está no `.gitignore`).
+
+Se o tema não tiver fonte pública, o ciclo falha com `RealDataUnavailableError` e a UI exibe o motivo — a interface não contorna a regra de zero dados sintéticos.
+
+---
+
+## 📦 Pacote de submissão
+
+O módulo `integrations/publishing.py` monta um ZIP pronto para submissão a
+SciELO Preprints, arXiv e SBC (BRACIS/SBBD):
+
+```python
+from integrations import generate_submission_package
+
+pacote = generate_submission_package("outputs/ciclo_84_dengue")
+print(pacote.path)      # outputs/ciclo_84_dengue/submissao_ciclo_84_dengue.zip
+print(pacote.arquivos)  # paper.pdf, paper.tex, bibliografia.bib, ...
+```
+
+O pacote contém `paper.pdf`, `paper.tex`, `bibliografia.bib`, `codigo_experimento.py`
+(script que reproduz os números), `metadata_dados.json` (procedência dos dados) e
+`INSTRUCOES_SUBMISSAO.md` (normas de cada veículo). Se os metadados do ciclo não
+atestarem dados 100% reais, a geração é recusada com `IntegrityError`.
+
+---
+
 ## Providers de LLM
 
 Configure em `config.json` (ou por variáveis de ambiente).

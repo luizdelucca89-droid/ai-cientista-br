@@ -16,6 +16,7 @@ python main.py --topic "..."               # ciclo completo (provider mock por p
 python main.py --topic "..." --collect-only
 python main.py --topics-file arquivo.txt --parallel 3
 python main.py --memory-stats
+streamlit run app.py                       # interface gráfica (abas Nova pesquisa / Histórico / Config)
 pytest -q -m "not network"                 # rápido, offline, determinístico
 pytest -q                                  # inclui testes que consultam APIs públicas
 ```
@@ -102,18 +103,33 @@ As integrações (Crossref, SciELO, OpenAlex, BCB, IBGE, InfoDengue) alimentam a
 fases de **evidências** e de **experimento**. `core/experiments/runner.py`
 consulta `core/experiments/datasets.py::build_real_dataset(topic)` antes de
 treinar. Se houver fonte pública para o tema, o experimento roda sobre
-**observações reais**: hoje, dengue usa o InfoDengue (Fiocruz/FGV), com casos e
-clima por semana epidemiológica, corte **temporal** (treino no passado, teste no
-futuro) e linha de base de **persistência** (o nível de alerta atual como
-previsão do próximo).
+**observações reais**: dengue usa o InfoDengue (Fiocruz/FGV), com casos e clima
+por semana epidemiológica; desmatamento usa o PRODES (INPE); agricultura e
+educação usam o SIDRA (IBGE). O corte é sempre **temporal** (treino no passado,
+teste no futuro) e as linhas de base são de **persistência** (séries) ou de
+**tendência** (painéis anuais).
 
-Sem fonte pública para o tema, o runner cai em `generate_synthetic_dataset`
-(seed fixa). Nesse caso os metadados trazem `tipo: sintetica`, e o resultado não
-sustenta afirmação sobre o fenômeno real — o próprio validador costuma apontar
-isso.
+Sem fonte pública para o tema, o runner levanta `RealDataUnavailableError`. Não
+existe gerador sintético: `generate_synthetic_dataset` foi removido. Nenhum
+resultado é produzido a partir de dados fabricados.
 
 Depois de validar, o orquestrador roda uma conferência determinística de
 **fidelidade numérica** (`core/review/numeros.py`): cada número do manuscrito é
 comparado com os dados produzidos, e os que não têm lastro são reportados. Isso
 pegou um erro real — um `200201` onde o dado dizia `202201`.
+
+## Interface gráfica e publicação
+
+- `app.py` — UI Streamlit (abas Nova pesquisa / Histórico / Configurações).
+  Dispara o mesmo `Orchestrator`; não contorna a regra de zero dados sintéticos.
+  Rodar com `streamlit run app.py`. Testada no CI apenas com `py_compile`
+  (a UI precisa de servidor), por isso a checagem é de sintaxe.
+- `integrations/publishing.py` — `generate_submission_package(cycle_dir)` monta
+  o ZIP de submissão (paper.pdf, paper.tex, bibliografia.bib,
+  codigo_experimento.py, metadata_dados.json, INSTRUCOES_SUBMISSAO.md).
+  Levanta `IntegrityError` se `dataset.tipo != "dados_reais"` ou se houver termo
+  sintético nos metadados do **bloco `experimento`** (a prosa das seções não é
+  varrida: um artigo pode citar "dados sintéticos" ao discutir a literatura).
+  A comparação normaliza acentos (NFKD), então `sintéticos` casa com `sintetic`.
+
 

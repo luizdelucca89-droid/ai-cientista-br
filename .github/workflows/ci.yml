@@ -30,6 +30,9 @@ jobs:
       - name: Diagnóstico do ambiente (sem rede)
         run: python main.py --doctor --no-network
 
+      - name: Verificar sintaxe da interface (app.py)
+        run: python -m py_compile app.py
+
       - name: Testes offline (rápidos e determinísticos)
         run: pytest -q -m "not network"
 
