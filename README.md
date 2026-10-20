@@ -392,6 +392,28 @@ mascarar a configuração de CI/produção). Valores de exemplo como
 `sua_chave_real_aqui` são tratados como ausentes, então um `.env` recém-copiado
 não finge ter chave nem gasta uma tentativa com 401.
 
+**Os nomes das variáveis importam.** O catálogo lê exatamente estes nomes — um
+nome diferente deixa o provider indisponível em silêncio e a categoria cai no
+coringa:
+
+| Variável | Modelos | Endpoint |
+|---|---|---|
+| `GEMINI_API_KEY` | 3 (inclui o coringa) | Google AI Studio |
+| `NVIDIA_API_KEY` | 7 | `integrate.api.nvidia.com` (NIM) |
+| `OPENROUTER_API_KEY` | 5 | `openrouter.ai` |
+| `MISTRAL_API_KEY` | 5 | `api.mistral.ai` |
+
+Para conferir o que o roteador vai usar antes de rodar o pipeline:
+
+```bash
+python main.py --doctor --no-network
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok)
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok; chaves ausentes: NVIDIA_API_KEY)
+```
+
+Só `GEMINI_API_KEY` é obrigatória: sem as outras, as categorias sem chave usam o
+coringa (que atende qualquer tarefa), em vez do mock.
+
 ---
 
 ## Arquitetura

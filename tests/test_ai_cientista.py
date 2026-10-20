@@ -1065,6 +1065,38 @@ def test_doctor_reports_environment(tmp_path):
     assert "DIAGNÓSTICO" in render(result)
 
 
+def test_doctor_reporta_roteamento_por_tarefa(tmp_path):
+    """O diagnóstico expõe o roteador e as chaves que faltam.
+
+    Sem esta checagem, um nome de variável errado no ``.env``
+    (``NVIDIA_NIM_API_KEY`` em vez de ``NVIDIA_API_KEY``) passaria despercebido:
+    o provider fica indisponível em silêncio e a categoria cai no coringa.
+    """
+    from core.doctor import Doctor
+
+    result = Doctor().run(output_dir=str(tmp_path), check_network=False)
+    router_checks = [c for c in result["checks"] if c["name"] == "roteamento por tarefa"]
+    assert router_checks, "o diagnóstico deve reportar o roteador por tarefa"
+    detalhe = router_checks[0]["detail"]
+    assert "categorias" in detalhe
+    # Sem chaves no ambiente (conftest as remove), todas devem ser listadas.
+    assert "NVIDIA_API_KEY" in detalhe
+    assert "GEMINI_API_KEY" in detalhe
+
+
+def test_doctor_nao_quebra_com_catalogo_ausente(tmp_path, monkeypatch):
+    """Catálogo ausente vira aviso, não falha crítica do diagnóstico."""
+    import core.utils as utils
+
+    monkeypatch.setattr(utils, "ROOT", tmp_path)
+    from core.doctor import Doctor
+
+    result = Doctor().run(output_dir=str(tmp_path), check_network=False)
+    assert result["ok"] is True  # o roteador é aviso, não bloqueia o pipeline
+    checks = [c for c in result["checks"] if c["name"] == "roteamento por tarefa"]
+    assert checks and checks[0]["ok"] is False
+
+
 def test_batch_runner_processes_multiple_topics(tmp_path):
     """O modo lote executa vários tópicos e consolida um relatório."""
     from core.batch import BatchRunner
