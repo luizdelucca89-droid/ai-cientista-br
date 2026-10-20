@@ -133,6 +133,20 @@ def test_rejeita_metadados_com_termo_sintetico(tmp_path: Path) -> None:
         generate_submission_package(ciclo_dir)
 
 
+def test_aceita_metodologia_com_simulacao(tmp_path: Path) -> None:
+    """Simulação é método legítimo, não dado fabricado.
+
+    O desenho pode descrever "ataques DoS simulados" ou "rede IoT simulada" com
+    dados 100% reais; o termo genérico "simulad" rejeitava esses ciclos.
+    """
+    ciclo_dir = _ciclo_falso(
+        tmp_path,
+        extra={"desenho": "Experimento com injeção de falhas em rede IoT simulada."},
+    )
+    pacote = generate_submission_package(ciclo_dir)
+    assert Path(pacote.path).exists()
+
+
 def test_rejeita_sem_paper_pdf(tmp_path: Path) -> None:
     ciclo_dir = _ciclo_falso(tmp_path)
     (ciclo_dir / "paper.pdf").unlink()

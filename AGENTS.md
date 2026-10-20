@@ -182,5 +182,9 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
   sintético nos metadados do **bloco `experimento`** (a prosa das seções não é
   varrida: um artigo pode citar "dados sintéticos" ao discutir a literatura).
   A comparação normaliza acentos (NFKD), então `sintéticos` casa com `sintetic`.
+  Armadilha: `TERMOS_SINTETICOS` **não** inclui `simulad`. Simulação é método
+  legítimo ("ataques DoS simulados", "rede IoT simulada") e o termo rejeitava
+  ciclos com dados reais (ciclo #125, SIDRA n=809). O desenho experimental é
+  prosa e entra na varredura; só termos que de fato denunciam fabricação ficam.
 
 
