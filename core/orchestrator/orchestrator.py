@@ -233,7 +233,7 @@ class Orchestrator:
 
     def phase_validate(self, topic: str, sections: dict[str, str], plan: dict[str, Any], experiment: dict[str, Any], gathered: dict[str, Any] | None = None) -> dict[str, Any]:
         logger.info("[8/8] Validando qualidade e conformidade...")
-        manuscript = self._manuscript_text(topic, sections)
+        manuscript = self._manuscript_completo(topic, sections)
         checklist = {
             "tem_lacuna": bool(plan.get("lacuna")),
             "n_hipoteses": len(plan.get("hipoteses") or []),
@@ -308,6 +308,10 @@ class Orchestrator:
 
     _SECOES_CORPO = ("resumo", "introducao", "metodologia", "resultados", "conclusao")
 
+    # O abstract em inglês é renderizado no paper, então também precisa passar
+    # pela conferência de fidelidade — senão a tradução pode trocar um número.
+    _SECOES_FIDELIDADE = _SECOES_CORPO + ("abstract",)
+
     def _reescrever_sem_numeros_sem_lastro(
         self,
         topic: str,
@@ -361,14 +365,14 @@ Devolva apenas o texto final da seção, preservando o conteúdo substantivo."""
         """
         fontes = self._fontes_numericas(plan, experiment, gathered)
         for rodada in range(max_rounds):
-            manuscript = self._manuscript_text(topic, sections)
+            manuscript = self._manuscript_completo(topic, sections)
             if not find_unsupported_numbers(manuscript, fontes):
                 fidelidade = self._check_numeric_fidelity(manuscript, plan, experiment, gathered)
                 fidelidade["rodadas_reparo"] = rodada
                 return sections, fidelidade
 
             alvos: dict[str, list[float]] = {}
-            for key in self._SECOES_CORPO:
+            for key in self._SECOES_FIDELIDADE:
                 texto = sections.get(key)
                 if not texto:
                     continue
@@ -391,7 +395,7 @@ Devolva apenas o texto final da seção, preservando o conteúdo substantivo."""
                     logger.warning("Falha ao reparar seção %s: %s", key, exc)
 
         fidelidade = self._check_numeric_fidelity(
-            self._manuscript_text(topic, sections), plan, experiment, gathered
+            self._manuscript_completo(topic, sections), plan, experiment, gathered
         )
         fidelidade["rodadas_reparo"] = max_rounds
         return sections, fidelidade
@@ -555,6 +559,18 @@ Devolva apenas o texto final da seção, preservando o conteúdo substantivo."""
             if sections.get(key):
                 parts.append(f"\n## {key.upper()}\n{sections[key]}")
         return "\n".join(parts)
+
+    @staticmethod
+    def _manuscript_completo(topic: str, sections: dict[str, str]) -> str:
+        """Como :meth:`_manuscript_text`, mas incluindo o abstract em inglês.
+
+        O abstract é renderizado no paper, então entra na conferência de
+        fidelidade. A tradução já trocou um AUC de 0,981 por 0,810.
+        """
+        partes = [Orchestrator._manuscript_text(topic, sections)]
+        if sections.get("abstract"):
+            partes.append(f"\n## ABSTRACT\n{sections['abstract']}")
+        return "\n".join(partes)
 
     def _make_abstract_en(self, writer: Any, topic: str, resumo_pt: str) -> str:
         prompt = (

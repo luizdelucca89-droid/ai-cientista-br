@@ -88,6 +88,38 @@ def test_reparo_nao_toca_secoes_fieis():
     assert fidelidade["rodadas_reparo"] == 0
 
 
+def test_abstract_entra_na_conferencia_de_fidelidade():
+    """A tradução do resumo já trocou um AUC de 0,981 por 0,810.
+
+    O abstract é renderizado no paper, então precisa ser conferido como as
+    demais seções — antes ele ficava de fora e o número errado era publicado.
+    """
+    orq = _orquestrador_minimo()
+    redator = _RedatorFalso("Random Forest reached an AUC-ROC of 0.981.")
+    orq.agents["redator"] = redator
+
+    secoes = {
+        "resumo": "A floresta aleatória atingiu AUC-ROC de 0,981.",
+        "introducao": "Intro.",
+        "metodologia": "Método.",
+        "resultados": "Resultados.",
+        "conclusao": "Conclusão.",
+        "abstract": "Random Forest reached an AUC-ROC of 0.810.",
+    }
+    experiment = {
+        "resultado": {"metrics": {"floresta_aleatoria": {"auc_roc": 0.981, "f1_score": 0.8989}}},
+        "hipotese_principal": "H",
+    }
+    plan = {"lacuna": "L", "hipoteses": []}
+
+    secoes, fidelidade = orq._repair_numeric_fidelity("dengue", secoes, plan, experiment, gathered=None)
+
+    assert redator.chamadas >= 1, "o abstract deveria ter sido reparado"
+    assert fidelidade["ok"] is True
+    assert "0.810" not in secoes["abstract"]
+    assert "0.981" in secoes["abstract"]
+
+
 def _ciclo_com_numero_sem_lastro(tmp_path: Path, numeros: list[float]) -> Path:
     ciclo_dir = tmp_path / "ciclo_1_teste"
     ciclo_dir.mkdir(parents=True)

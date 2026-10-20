@@ -154,8 +154,20 @@ redação e antes da formatação, reescrevendo cada seção que cita número se
 fica em `fidelidade_pre_formatacao` no `ciclo_completo.json`, e o pacote de
 submissão é rejeitado (`IntegrityError`) se ainda houver número sem lastro — um
 número fabricado não pode mais chegar ao PDF publicado. Armadilha: o reparo só
-terminal quando o LLM coopera; se esgotar as rodadas com suspeitos, o ciclo
+termina quando o LLM coopera; se esgotar as rodadas com suspeitos, o ciclo
 conclui marcado, e o portão de submissão barra a publicação.
+
+Duas armadilhas reais de cobertura, descobertas com o Gemini:
+
+1. O **abstract em inglês** é renderizado no paper, mas ficava fora da conferência
+   (`_manuscript_text` listava só as seções PT). A tradução trocou um AUC de 0,981
+   por 0,810 e o número errado foi publicado. Hoje `_manuscript_completo` inclui o
+   abstract, e `_SECOES_FIDELIDADE` cobre as seis seções.
+2. O padrão de "versão de software" (`_PADRAO_VERSAO`) era genérico
+   (`[A-Za-z]+\s+\d+\.\d+`) e **apagava qualquer decimal em inglês**: "AUC of 0.810"
+   virava "AUC " e escapava da conferência. Como o texto PT usa vírgula, o defeito
+   só aparecia no abstract. Agora o padrão exige um nome de software conhecido
+   (python, torch, versão, ...) ou o prefixo `v`.
 
 ## Interface gráfica e publicação
 
