@@ -25,7 +25,7 @@ REVIEW_FEWSHOT = """EXEMPLO DE PARECER BEM CALIBRADO (use como referência de ri
     "A comparação contra linha de base estatística é feita no mesmo particionamento."
   ],
   "pontos_fracos": [
-    "A base é sintética, o que impede qualquer afirmação sobre o fenômeno real investigado.",
+    "A proveniência dos dados não é suficiente para sustentar a afirmação causal do título.",
     "Não há análise de poder; com n pequeno, o intervalo de confiança do F1 é largo."
   ],
   "recomendacoes": [

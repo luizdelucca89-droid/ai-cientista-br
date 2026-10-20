@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", "-c", default=None, help="Caminho de um config.json alternativo.")
     parser.add_argument("--output-dir", "-o", default=None, help="Diretório de saída.")
     parser.add_argument("--provider", default=None, choices=["mock", "openai_compatible", "selenium"], help="Provider de LLM.")
+    parser.add_argument("--model", default=None, help="Modelo do provider (ex.: openai/gpt-oss-120b, qwen/qwen3.8-27b, llama3.1).")
+    parser.add_argument("--base-url", default=None, help="URL base compatível com a API da OpenAI (ex.: https://api.groq.com/openai/v1).")
     parser.add_argument("--force", action="store_true", help="Repetir mesmo que o tópico já exista na memória.")
     parser.add_argument("--collect-only", action="store_true", help="Apenas coletar evidências abertas.")
     parser.add_argument("--doctor", action="store_true", help="Diagnosticar o ambiente e sair (sem executar o pipeline).")
@@ -70,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.provider:
         config.data.setdefault("llm", {})["provider"] = args.provider
         config.data["llm"]["fallback_order"] = [args.provider, "mock"] if args.provider != "mock" else ["mock"]
+    if args.model:
+        config.data.setdefault("llm", {})["model"] = args.model
+    if args.base_url:
+        config.data.setdefault("llm", {})["base_url"] = args.base_url
 
     if args.doctor:
         from core.doctor import Doctor, render
@@ -142,12 +148,43 @@ def main(argv: list[str] | None = None) -> int:
     if best in metrics:
         print(f"F1 (melhor modelo): {metrics[best].get('f1_score')}")
     print(f"Score de validação: {phases['validacao'].get('score')}")
+    fidelidade = phases["validacao"].get("fidelidade_numerica") or {}
+    if fidelidade:
+        if fidelidade.get("ok"):
+            print("Fidelidade numérica: todos os números têm lastro nos dados")
+        else:
+            print(f"Fidelidade numérica: {len(fidelidade.get('numeros_sem_suporte', []))} valor(es) sem lastro: {fidelidade.get('numeros_sem_suporte')}")
+    dataset = (phases["experimento"]["resultado"].get("dataset") or {})
+    if dataset:
+        origem = dataset.get("origem", "")
+        print(f"Dados: {dataset.get('tipo')} | n={dataset.get('n_amostras')} | {origem[:70]}")
     decisao = phases["validacao"].get("decisao_painel")
     if decisao:
         consenso = phases["validacao"].get("consenso_painel")
         print(f"Painel de revisão: {decisao} (consenso={consenso})")
     print(f"Paper: {phases['artefatos'].get('final_paper')}")
     print(f"Diretório do ciclo: {phases['artefatos'].get('diretorio')}")
+
+    llm_stats = phases.get("metricas_llm") or {}
+    by_provider = llm_stats.get("por_provider") or {}
+    if by_provider:
+        used = ", ".join(f"{name}={count}" for name, count in by_provider.items())
+        print(f"Chamadas de LLM: {used}")
+        configurados = [p for p in llm_stats.get("providers_configurados", []) if p != "mock"]
+        if by_provider.get("mock") and configurados:
+            falhas = llm_stats.get("falhas_por_provider") or {}
+            detalhe = ", ".join(f"{p} ({falhas[p]} falhas)" for p in configurados if p in falhas)
+            print(
+                f"AVISO: {by_provider['mock']} de {llm_stats.get('chamadas')} chamadas caíram no provider "
+                f"mock. Providers reais configurados: {', '.join(configurados)}"
+                + (f" — {detalhe}" if detalhe else "")
+                + ". O texto do artigo NÃO foi gerado pelo modelo escolhido."
+            )
+        elif by_provider.get("mock") and not configurados:
+            print(
+                "AVISO: todas as chamadas usaram o provider mock; nenhum LLM real foi configurado "
+                "ou nenhuma chave estava disponível. O texto é estrutural, não científico."
+            )
     return 0 if result["status"] == "concluido" else 1
 
 

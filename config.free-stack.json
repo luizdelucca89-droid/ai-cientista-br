@@ -1,0 +1,53 @@
+{
+  "_comentario": "Pilha de tiers gratuitos. Cada entrada tem a sua própria variável de chave, então uma não sobrescreve a outra. O cliente tenta na ordem e cai para a próxima quando uma falha ou atinge rate limit. A última entrada (mock) garante que o ciclo sempre termina.",
+  "llm": {
+    "providers": [
+      {
+        "name": "gemini",
+        "type": "openai_compatible",
+        "api_key_env": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model": "gemini-3.5-flash-lite",
+        "max_tokens": 8192,
+        "timeout": 90
+      },
+      {
+        "name": "groq",
+        "type": "openai_compatible",
+        "api_key_env": "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+        "model": "openai/gpt-oss-120b",
+        "max_tokens": 4096,
+        "timeout": 90
+      },
+      {
+        "name": "mistral",
+        "type": "openai_compatible",
+        "api_key_env": "MISTRAL_API_KEY",
+        "base_url": "https://api.mistral.ai/v1",
+        "model": "mistral-small-latest",
+        "max_tokens": 4096,
+        "timeout": 90
+      },
+      {
+        "name": "openrouter",
+        "type": "openai_compatible",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "max_tokens": 4096,
+        "timeout": 90
+      },
+      {
+        "name": "mock",
+        "type": "mock"
+      }
+    ],
+    "temperature": 0.2,
+    "retries": 2,
+    "cache": {
+      "enabled": true,
+      "path": "outputs/llm_cache.sqlite3"
+    }
+  }
+}

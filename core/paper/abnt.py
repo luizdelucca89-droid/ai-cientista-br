@@ -11,6 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.paper.headings import (
+    renumber_subsections,
+    strip_ai_declaration_blocks,
+    strip_duplicate_heading,
+)
 from core.utils import ensure_dir, setup_logger
 
 logger = setup_logger(__name__)
@@ -96,23 +101,25 @@ class ABNTFormatter:
         lines.append(f"**Norma:** {self.reference_style}")
         lines.append("")
         lines.append("## RESUMO")
-        lines.append(sections.get("resumo", "").strip())
+        lines.append(strip_duplicate_heading(sections.get("resumo", "").strip(), "RESUMO"))
         lines.append("")
         lines.append("**Palavras-chave:** " + "; ".join(metadata.get("palavras_chave", [])))
         lines.append("")
         lines.append("## ABSTRACT")
-        lines.append(sections.get("abstract", "").strip())
+        lines.append(strip_duplicate_heading(sections.get("abstract", "").strip(), "ABSTRACT"))
         lines.append("")
         lines.append("**Keywords:** " + "; ".join(metadata.get("keywords", [])))
         lines.append("")
-        for key, heading in (
-            ("introducao", "1 INTRODUÇÃO"),
-            ("metodologia", "2 METODOLOGIA"),
-            ("resultados", "3 RESULTADOS E DISCUSSÃO"),
-            ("conclusao", "4 CONCLUSÃO"),
+        for numero, key, heading in (
+            (1, "introducao", "1 INTRODUÇÃO"),
+            (2, "metodologia", "2 METODOLOGIA"),
+            (3, "resultados", "3 RESULTADOS E DISCUSSÃO"),
+            (4, "conclusao", "4 CONCLUSÃO"),
         ):
             lines.append(f"## {heading}")
-            lines.append(sections.get(key, "").strip())
+            corpo = strip_duplicate_heading(sections.get(key, "").strip(), heading)
+            corpo = strip_ai_declaration_blocks(corpo)
+            lines.append(renumber_subsections(corpo, numero))
             lines.append("")
         if figures:
             lines.append("## FIGURAS")

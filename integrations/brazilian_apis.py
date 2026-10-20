@@ -112,6 +112,25 @@ def _clean_markup(raw: str | None, limit: int = 600) -> str:
     return truncate(text, limit, suffix="")
 
 
+def _para_float(valor: Any) -> float | None:
+    """Converte um valor da API para ``float``; devolve ``None`` se não numérico.
+
+    As APIs brasileiras alternam entre número JSON e string numérica, e usam
+    ``None``/``""`` para semanas sem medição. Sem normalizar, a montagem do
+    dataset real quebra em ``float(None)``.
+    """
+    if valor is None:
+        return None
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 # --------------------------------------------------------------------------- #
 # Crossref
 # --------------------------------------------------------------------------- #
@@ -425,6 +444,91 @@ class IBGEAPI(BaseAPI):
 
 
 # --------------------------------------------------------------------------- #
+# InfoDengue (Fiocruz/FGV) — vigilância de arboviroses com clima acoplado
+# --------------------------------------------------------------------------- #
+@dataclass
+class InfoDengueAPI(BaseAPI):
+    """Semanas epidemiológicas do InfoDengue, com clima real acoplado.
+
+    O InfoDengue (Fiocruz + FGV) publica, por município e semana epidemiológica,
+    os casos notificados/estimados de dengue e as variáveis climáticas que
+    entraram no modelo de nowcasting (temperatura e umidade médias). Isso permite
+    um experimento **com dados observados**, sem gerador sintético: as features
+    são medições reais e o alvo é o nível de alerta da semana seguinte.
+    """
+
+    base_url: str = "https://info.dengue.mat.br/api"
+    name: str = "infodengue"
+
+    CIDADES = {
+        3304557: "Rio de Janeiro",
+        3550308: "São Paulo",
+        3106200: "Belo Horizonte",
+        4106902: "Curitiba",
+        5208707: "Goiânia",
+        2927408: "Salvador",
+        1302603: "Manaus",
+        2611606: "Recife",
+    }
+
+    # Campos numéricos que o endpoint devolve e que usamos como features.
+    CAMPOS_NUMERICOS = (
+        "tempmed",
+        "umidmed",
+        "casos",
+        "casos_est",
+        "p_inc100k",
+        "Rt",
+        "nivel",
+        "nivel_inc",
+    )
+
+    def semanas(self, geocode: int, ano: int, ew_inicio: int = 1, ew_fim: int = 52) -> list[dict[str, Any]]:
+        """Semanas epidemiológicas de um município em um ano, ordenadas por SE."""
+        data = self.get_json(
+            f"{self.base_url}/alertcity",
+            {
+                "geocode": geocode,
+                "disease": "dengue",
+                "format": "json",
+                "ew_start": ew_inicio,
+                "ew_end": ew_fim,
+                "ey_start": ano,
+                "ey_end": ano,
+            },
+        )
+        if not data:
+            return []
+        return sorted(data, key=lambda x: x.get("SE", 0))
+
+    def coletar(
+        self,
+        municipios: dict[int, str] | None = None,
+        anos: tuple[int, ...] = (2022, 2023),
+    ) -> list[dict[str, Any]]:
+        """Séries semanais de vários municípios e anos, em ordem cronológica.
+
+        Cada item traz ``municipio``/``geocode``/``SE`` e os campos numéricos
+        convertidos para ``float`` (``None`` quando a fonte não publica o valor).
+        """
+        alvos = municipios or self.CIDADES
+        registros: list[dict[str, Any]] = []
+        for geocode, nome in alvos.items():
+            for ano in anos:
+                for semana in self.semanas(geocode, ano):
+                    item: dict[str, Any] = {
+                        "geocode": geocode,
+                        "municipio": nome,
+                        "SE": semana.get("SE"),
+                        "ano": ano,
+                    }
+                    for campo in self.CAMPOS_NUMERICOS:
+                        item[campo] = _para_float(semana.get(campo))
+                    registros.append(item)
+        return registros
+
+
+# --------------------------------------------------------------------------- #
 # Lattes (sem API pública)
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -455,6 +559,419 @@ class LattesAPI(BaseAPI):
 
 
 # --------------------------------------------------------------------------- #
+# DATASUS (microdados SINAN/SIM via FTP)
+# --------------------------------------------------------------------------- #
+@dataclass
+class DATASUSAPI(BaseAPI):
+    """Microdados do DATASUS via FTP oficial (``ftp.datasus.gov.br``).
+
+    O TabNet (``tabnet.datasus.gov.br``) é apenas uma interface de tabulação: o
+    ``POST`` exige a sessão do CGI e devolve HTML, não dados brutos. A rota
+    programática confiável é o FTP público ``/dissemin/publicos``, que serve os
+    arquivos ``.dbc`` (DBF comprimido) de origem do SINAN, SIM e SINASC.
+
+    Este cliente baixa, converte ``.dbc`` → ``.dbf`` e lê os registros, com
+    cache em disco para não repetir transferências pesadas. A conversão usa
+    ``pyreaddbc``/``dbfread`` (dependências de ``pysus``); sem elas, o cliente
+    sinaliza a indisponibilidade em vez de fabricar dados.
+    """
+
+    base_url: str = "ftp.datasus.gov.br"
+    name: str = "datasus"
+    cache_dir: Any = None
+    # Subdiretórios reais dos conjuntos usados pelo pipeline.
+    DIRETORIOS = {
+        "sinan_dengue": "/dissemin/publicos/SINAN/DADOS/FINAIS",
+        "sim_dores": "/dissemin/publicos/SIM/CID10/DORES",
+        "sinasc": "/dissemin/publicos/SINASC/NOV/DNRES",
+    }
+
+    def _cache_path(self) -> Any:
+        from pathlib import Path
+
+        base = Path(self.cache_dir) if self.cache_dir else Path("outputs/datasus_cache")
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+
+    def arquivos(self, conjunto: str = "sinan_dengue", padrao: str = "") -> list[str]:
+        """Lista os arquivos de um conjunto no FTP (ex.: ``DENGBR*``)."""
+        import ftplib
+
+        diretorio = self.DIRETORIOS.get(conjunto)
+        if diretorio is None:
+            raise ValueError(f"conjunto desconhecido: {conjunto}")
+        ftp = ftplib.FTP(self.base_url, timeout=self.timeout)
+        try:
+            ftp.login()
+            ftp.cwd(diretorio)
+            nomes = ftp.nlst()
+        finally:
+            try:
+                ftp.quit()
+            except Exception:  # noqa: BLE001
+                ftp.close()
+        if padrao:
+            alvo = padrao.upper()
+            nomes = [n for n in nomes if alvo in n.upper()]
+        return sorted(nomes)
+
+    def baixar(self, conjunto: str, arquivo: str) -> Any:
+        """Baixa um ``.dbc`` para o cache local e devolve o caminho."""
+        import ftplib
+        from pathlib import Path
+
+        destino = self._cache_path() / f"{conjunto}_{arquivo}"
+        if destino.exists() and destino.stat().st_size > 0:
+            logger.info("DATASUS: usando cache %s", destino)
+            return destino
+        diretorio = self.DIRETORIOS.get(conjunto)
+        if diretorio is None:
+            raise ValueError(f"conjunto desconhecido: {conjunto}")
+        ftp = ftplib.FTP(self.base_url, timeout=max(self.timeout, 60))
+        try:
+            ftp.login()
+            ftp.cwd(diretorio)
+            with open(destino, "wb") as handle:
+                ftp.retrbinary(f"RETR {arquivo}", handle.write)
+        finally:
+            try:
+                ftp.quit()
+            except Exception:  # noqa: BLE001
+                ftp.close()
+        logger.info("DATASUS: baixado %s (%.1f MB)", arquivo, destino.stat().st_size / 1e6)
+        return destino
+
+    def ler_dbc(self, caminho: Any) -> list[dict[str, Any]]:
+        """Converte ``.dbc`` → ``.dbf`` e lê os registros como dicionários.
+
+        Levanta ``RuntimeError`` quando as dependências de conversão faltam ou o
+        arquivo está corrompido — nunca devolve dados inventados.
+        """
+        from pathlib import Path
+
+        origem = Path(caminho)
+        try:
+            import pyreaddbc
+            from dbfread import DBF
+        except ImportError as exc:  # pragma: no cover - depende do ambiente
+            raise RuntimeError(
+                "Leitura de .dbc requer pyreaddbc e dbfread (instale pysus)."
+            ) from exc
+
+        dbf_path = origem.with_suffix(".dbf")
+        if not dbf_path.exists():
+            pyreaddbc.dbc2dbf(str(origem), str(dbf_path))
+        return [dict(registro) for registro in DBF(str(dbf_path), encoding="latin-1")]
+
+    def coletar_dengue(self, anos: tuple[int, ...] = (2019, 2020, 2021)) -> list[dict[str, Any]]:
+        """Notificações semanais de dengue por UF, a partir dos microdados SINAN.
+
+        Agrega os casos notificados por UF e semana epidemiológica de
+        notificação, que é a granularidade usada pela vigilância. Cada item traz
+        ``uf``, ``ano``, ``semana`` e ``casos`` (contagem real de registros).
+        """
+        from collections import Counter
+
+        contagem: Counter[tuple[str, int, int]] = Counter()
+        for ano in anos:
+            arquivo = f"DENGBR{str(ano)[-2:]}.dbc"
+            try:
+                caminho = self.baixar("sinan_dengue", arquivo)
+                registros = self.ler_dbc(caminho)
+            except (RuntimeError, OSError) as exc:
+                logger.warning("DATASUS: %s indisponível (%s)", arquivo, exc)
+                continue
+            for registro in registros:
+                uf = str(registro.get("SG_UF_NOT") or registro.get("SG_UF") or "").strip()
+                semana = _para_float(registro.get("SEM_NOT"))
+                if not uf or semana is None:
+                    continue
+                contagem[(uf, ano, int(semana))] += 1
+        registros_finais = [
+            {"uf": uf, "ano": ano, "semana": semana, "casos": casos, "fonte": "DATASUS/SINAN"}
+            for (uf, ano, semana), casos in sorted(contagem.items())
+        ]
+        logger.info("DATASUS: %s semanas UF×SE agregadas de %s anos", len(registros_finais), len(anos))
+        return registros_finais
+
+
+# --------------------------------------------------------------------------- #
+# INPE / TerraBrasilis (PRODES — desmatamento)
+# --------------------------------------------------------------------------- #
+@dataclass
+class INPEAPI(BaseAPI):
+    """Desmatamento oficial do INPE (PRODES) via WFS do TerraBrasilis.
+
+    O TerraBrasilis publica o PRODES como GeoServer WFS. Consultamos a camada
+    ``yearly_deforestation_biome`` (polígonos anuais por bioma) com filtro CQL
+    por ano e pedimos a saída em CSV — dados oficiais de área desmatada
+    (``area_km``) por estado e ano, sem intermediação de terceiros.
+    """
+
+    base_url: str = "https://terrabrasilis.dpi.inpe.br/geoserver/ows"
+    name: str = "inpe"
+    layer: str = "prodes-amazon-nb:yearly_deforestation_biome"
+
+    def desmatamento_por_estado(self, ano: int, layer: str | None = None) -> list[dict[str, Any]]:
+        """Soma a área desmatada (km²) por UF em um ano do PRODES."""
+        camada = layer or self.layer
+        response = self._fetch(
+            self.base_url,
+            {
+                "service": "WFS",
+                "version": "1.0.0",
+                "request": "GetFeature",
+                "typeName": camada,
+                "outputFormat": "csv",
+                "propertyName": "state,year,area_km",
+                "CQL_FILTER": f"year={int(ano)}",
+            },
+        )
+        if response is None:
+            return []
+        import csv as _csv
+        import io
+
+        leitor = _csv.DictReader(io.StringIO(response.text))
+        agregado: dict[str, float] = {}
+        for linha in leitor:
+            uf = (linha.get("state") or "").strip()
+            area = _para_float(linha.get("area_km"))
+            if not uf or area is None:
+                continue
+            agregado[uf] = agregado.get(uf, 0.0) + area
+        return [
+            {"uf": uf, "ano": int(ano), "area_km2": round(area, 4), "fonte": "INPE/PRODES"}
+            for uf, area in sorted(agregado.items())
+        ]
+
+    def serie_desmatamento(self, anos: tuple[int, ...], layer: str | None = None) -> list[dict[str, Any]]:
+        """Série de desmatamento por UF e ano (concatenando anos do PRODES)."""
+        registros: list[dict[str, Any]] = []
+        for ano in anos:
+            registros.extend(self.desmatamento_por_estado(ano, layer=layer))
+        return registros
+
+
+# --------------------------------------------------------------------------- #
+# IBGE SIDRA (indicadores agregados: agricultura, educação)
+# --------------------------------------------------------------------------- #
+@dataclass
+class SIDRAAPI(BaseAPI):
+    """Indicadores agregados do IBGE via API SIDRA (``apisidra.ibge.gov.br``).
+
+    A SIDRA expõe as tabelas do IBGE em JSON. Cada resposta traz um cabeçalho
+    seguido das linhas; ``V`` é o valor e os campos ``D*N`` identificam as
+    dimensões. Usamos para produção agrícola municipal (PAM) e alfabetização.
+    """
+
+    base_url: str = "https://apisidra.ibge.gov.br/values"
+    name: str = "sidra"
+
+    def valores(self, tabela: int, variavel: int | str, periodo: str = "last%201", n3: str = "all") -> list[dict[str, Any]]:
+        """Consulta uma tabela SIDRA e devolve as linhas (sem o cabeçalho)."""
+        url = f"{self.base_url}/t/{tabela}/n3/{n3}/v/{variavel}/p/{periodo}"
+        data = self.get_json(url)
+        if not isinstance(data, list) or len(data) < 2:
+            return []
+        return data[1:]
+
+    def producao_agricola(self, produto: int = 2713, anos: str = "last%202") -> list[dict[str, Any]]:
+        """Produção (toneladas) de um produto da lavoura temporária por UF.
+
+        Tabela 1612 (PAM), variável 214 (quantidade produzida), classificação
+        ``c81`` (produto). Padrão: 2713 = soja.
+        """
+        url = f"{self.base_url}/t/1612/n3/all/v/214/p/{anos}/c81/{produto}"
+        data = self.get_json(url)
+        if not isinstance(data, list) or len(data) < 2:
+            return []
+        registros: list[dict[str, Any]] = []
+        for linha in data[1:]:
+            valor = _para_float(linha.get("V"))
+            ano = _para_float(linha.get("D3N"))
+            if valor is None or ano is None:
+                continue
+            registros.append(
+                {
+                    "uf": linha.get("D1N"),
+                    "ano": int(ano),
+                    "producao_t": valor,
+                    "produto": linha.get("D4N") or str(produto),
+                    "fonte": "IBGE/SIDRA 1612",
+                }
+            )
+        return registros
+
+    def alfabetizacao(self, periodo: str = "last%201") -> list[dict[str, Any]]:
+        """Taxa de alfabetização (%) das pessoas de 15+ anos por UF (PNAD/SIDRA)."""
+        linhas = self.valores(9543, "allxp", periodo=periodo)
+        registros: list[dict[str, Any]] = []
+        for linha in linhas:
+            valor = _para_float(linha.get("V"))
+            if valor is None or not linha.get("D1N"):
+                continue
+            registros.append(
+                {
+                    "uf": linha.get("D1N"),
+                    "ano": _para_float(linha.get("D5N")),
+                    "alfabetizacao_pct": valor,
+                    "fonte": "IBGE/SIDRA 9543",
+                }
+            )
+        return registros
+
+
+# --------------------------------------------------------------------------- #
+# BDTD (teses e dissertações brasileiras)
+# --------------------------------------------------------------------------- #
+@dataclass
+class BDTDAPI(BaseAPI):
+    """Biblioteca Digital de Teses e Dissertações (IBICT) via API VuFind.
+
+    A BDTD usa o VuFind, cuja API REST (``/vufind/api/v1/search``) devolve JSON
+    com autores, títulos, resumos e instituições — produção acadêmica brasileira
+    que não aparece no Crossref. É usada para ampliar o estado da arte com
+    trabalhos nacionais.
+    """
+
+    base_url: str = "https://bdtd.ibict.br/vufind/api/v1/search"
+    name: str = "bdtd"
+
+    def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        data = self.get_json(
+            self.base_url,
+            {
+                "lookfor": query,
+                "type": "AllFields",
+                "limit": max(1, min(limit, 20)),
+                "field[]": ["title", "authors", "year", "summary", "urls", "formats"],
+            },
+        )
+        if not data:
+            return []
+        registros: list[dict[str, Any]] = []
+        for item in data.get("records", []):
+            autores = list((item.get("authors") or {}).get("primary", {}).keys())
+            urls = [u.get("url") for u in (item.get("urls") or []) if u.get("url")]
+            registros.append(
+                {
+                    "fonte": "bdtd",
+                    "titulo": item.get("title") or "(sem título)",
+                    "autores": autores,
+                    "ano": (item.get("year") or [None])[0] if isinstance(item.get("year"), list) else item.get("year"),
+                    "tipo": (item.get("formats") or [None])[0],
+                    "resumo": _clean_markup((item.get("summary") or [""])[0] if item.get("summary") else ""),
+                    "url": urls[0] if urls else None,
+                    "acesso": "aberto",
+                }
+            )
+        return registros
+
+
+# --------------------------------------------------------------------------- #
+# Dataverse (repositórios de dados brasileiros)
+# --------------------------------------------------------------------------- #
+@dataclass
+class DataverseAPI(BaseAPI):
+    """Dataverses brasileiros (ex.: FGV) via API de busca pública.
+
+    Devolve metadados de conjuntos de dados depositados, com identificador
+    persistente (``hdl``) e citação sugerida — a procedência exigida para citar
+    dados de repositório.
+    """
+
+    base_url: str = "https://dataverse.fgv.br/api/v1/search"
+    name: str = "dataverse"
+
+    def search(self, query: str, limit: int = 5, tipo: str = "dataset") -> list[dict[str, Any]]:
+        data = self.get_json(
+            self.base_url,
+            {"q": query, "type": tipo, "per_page": max(1, min(limit, 20))},
+        )
+        if not data:
+            return []
+        itens = (data.get("data") or {}).get("items", [])
+        return [
+            {
+                "fonte": "dataverse",
+                "titulo": item.get("name"),
+                "autores": item.get("authors") or [],
+                "ano": (item.get("published_at") or "")[:4] or None,
+                "identificador": item.get("global_id"),
+                "url": item.get("url"),
+                "citacao": item.get("citation"),
+                "publicador": item.get("publisher"),
+                "acesso": "aberto",
+            }
+            for item in itens
+        ]
+
+
+# --------------------------------------------------------------------------- #
+# Portal da Transparência (requer chave) e Kaggle (busca pública)
+# --------------------------------------------------------------------------- #
+@dataclass
+class PortalTransparenciaAPI(BaseAPI):
+    """Portal da Transparência (CGU).
+
+    A API oficial exige chave de acesso gratuita (``api.portaldatransparencia.gov.br``);
+    sem ``token`` o serviço responde HTTP 401. Este cliente não contorna a
+    autenticação: devolve explicitamente a exigência de chave para que o
+    pipeline registre a fonte como indisponível, em vez de inventar números.
+    """
+
+    base_url: str = "https://api.portaldatransparencia.gov.br/api-de-dados"
+    name: str = "transparencia"
+    token: str | None = None
+
+    def search(self, endpoint: str = "orgaos-siafi", params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        if not self.token:
+            logger.info(
+                "Portal da Transparência exige chave de API gratuita; fonte não consultada "
+                "(cadastre em portaldatransparencia.gov.br/api-de-dados)."
+            )
+            return []
+        self.session.headers.update({"chave-api-dados": self.token})
+        data = self.get_json(f"{self.base_url}/{endpoint}", params or {})
+        return data if isinstance(data, list) else []
+
+
+@dataclass
+class KaggleBRAPI(BaseAPI):
+    """Busca pública de datasets do Kaggle (metadados, sem autenticação).
+
+    O catálogo do Kaggle é consultável sem chave (``/api/v1/datasets/list``),
+    mas o *download* dos arquivos exige credenciais. Usamos a busca para citar
+    conjuntos públicos com licença e procedência; não baixamos arquivos sem
+    autenticação.
+    """
+
+    base_url: str = "https://www.kaggle.com/api/v1/datasets/list"
+    name: str = "kaggle"
+
+    def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        data = self.get_json(self.base_url, {"search": query, "page": 1})
+        if not isinstance(data, list):
+            return []
+        registros: list[dict[str, Any]] = []
+        for item in data[:limit]:
+            registros.append(
+                {
+                    "fonte": "kaggle",
+                    "titulo": item.get("titleNullable") or item.get("title"),
+                    "autores": [item.get("creatorNameNullable")] if item.get("creatorNameNullable") else [],
+                    "ano": None,
+                    "licenca": item.get("licenseNameNullable"),
+                    "url": item.get("urlNullable"),
+                    "download_requer_autenticacao": True,
+                    "acesso": "aberto",
+                }
+            )
+        return registros
+
+
+# --------------------------------------------------------------------------- #
 # Agregador
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -467,8 +984,19 @@ class BrazilianDataAggregator:
     bcb: BancoCentralAPI = field(default_factory=BancoCentralAPI)
     ibge: IBGEAPI = field(default_factory=IBGEAPI)
     lattes: LattesAPI = field(default_factory=LattesAPI)
+    bdtd: BDTDAPI = field(default_factory=BDTDAPI)
+    datasus: DATASUSAPI = field(default_factory=DATASUSAPI)
+    inpe: INPEAPI = field(default_factory=INPEAPI)
+    sidra: SIDRAAPI = field(default_factory=SIDRAAPI)
+    dataverse: DataverseAPI = field(default_factory=DataverseAPI)
+    kaggle: KaggleBRAPI = field(default_factory=KaggleBRAPI)
+    transparencia: PortalTransparenciaAPI = field(default_factory=PortalTransparenciaAPI)
     max_sources: int = 12
     offline: bool = False
+    # Ano de referência do PRODES consultado (o bioma é atualizado anualmente).
+    prodes_ano: int = 2022
+    # Fontes de microdados são pesadas; desabilitadas por padrão no agregador.
+    incluir_microdados: bool = False
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "BrazilianDataAggregator":
@@ -478,6 +1006,11 @@ class BrazilianDataAggregator:
         sc_cfg = integ.get("scielo", {})
         ibge_cfg = integ.get("ibge", {})
         bcb_cfg = integ.get("bcb", {})
+        bdtd_cfg = integ.get("bdtd", {})
+        inpe_cfg = integ.get("inpe", {})
+        sidra_cfg = integ.get("sidra", {})
+        dv_cfg = integ.get("dataverse", {})
+        ds_cfg = integ.get("datasus", {})
         crossref = CrossrefAPI(
             base_url=cr_cfg.get("base_url", "https://api.crossref.org/works"),
             timeout=cr_cfg.get("timeout", 15),
@@ -502,8 +1035,48 @@ class BrazilianDataAggregator:
                 timeout=ibge_cfg.get("timeout", 15),
                 rate_limit_seconds=ibge_cfg.get("rate_limit_seconds", 0.5),
             ),
+            bdtd=BDTDAPI(
+                base_url=bdtd_cfg.get("base_url", "https://bdtd.ibict.br/vufind/api/v1/search"),
+                timeout=bdtd_cfg.get("timeout", 20),
+                rate_limit_seconds=bdtd_cfg.get("rate_limit_seconds", 1.0),
+            ),
+            datasus=DATASUSAPI(
+                base_url=ds_cfg.get("base_url", "ftp.datasus.gov.br"),
+                timeout=ds_cfg.get("timeout", 60),
+                rate_limit_seconds=ds_cfg.get("rate_limit_seconds", 0.0),
+                cache_dir=ds_cfg.get("cache_dir"),
+            ),
+            inpe=INPEAPI(
+                base_url=inpe_cfg.get("base_url", "https://terrabrasilis.dpi.inpe.br/geoserver/ows"),
+                timeout=inpe_cfg.get("timeout", 60),
+                rate_limit_seconds=inpe_cfg.get("rate_limit_seconds", 1.0),
+                layer=inpe_cfg.get("layer", "prodes-amazon-nb:yearly_deforestation_biome"),
+            ),
+            sidra=SIDRAAPI(
+                base_url=sidra_cfg.get("base_url", "https://apisidra.ibge.gov.br/values"),
+                timeout=sidra_cfg.get("timeout", 30),
+                rate_limit_seconds=sidra_cfg.get("rate_limit_seconds", 0.5),
+            ),
+            dataverse=DataverseAPI(
+                base_url=dv_cfg.get("base_url", "https://dataverse.fgv.br/api/v1/search"),
+                timeout=dv_cfg.get("timeout", 30),
+                rate_limit_seconds=dv_cfg.get("rate_limit_seconds", 1.0),
+            ),
+            kaggle=KaggleBRAPI(
+                timeout=integ.get("kaggle", {}).get("timeout", 20),
+                rate_limit_seconds=integ.get("kaggle", {}).get("rate_limit_seconds", 1.0),
+            ),
+            transparencia=PortalTransparenciaAPI(
+                base_url=integ.get("transparencia", {}).get(
+                    "base_url", "https://api.portaldatransparencia.gov.br/api-de-dados"
+                ),
+                timeout=integ.get("transparencia", {}).get("timeout", 20),
+                token=integ.get("transparencia", {}).get("token"),
+            ),
             max_sources=int(agents.get("data_integrator", {}).get("max_sources", 12)),
             offline=bool(integ.get("offline", False)),
+            prodes_ano=int(inpe_cfg.get("ano", 2022)),
+            incluir_microdados=bool(integ.get("incluir_microdados", False)),
         )
 
     # ------------------------------------------------------------------ gather
@@ -516,6 +1089,7 @@ class BrazilianDataAggregator:
                 "coletado_em": utcnow_iso(),
                 "duracao_s": 0.0,
                 "artigos": [],
+                "datasets": [],
                 "series_brasil": [],
                 "contexto_brasil": {},
                 "lattes": [],
@@ -527,11 +1101,14 @@ class BrazilianDataAggregator:
         crossref = self.crossref.search(topic, rows=limit_per_source)
         scielo = self.scielo.search(topic, limit=limit_per_source)
         openalex = self.openalex.search(topic, limit=limit_per_source)
+        bdtd = self.bdtd.search(topic, limit=limit_per_source)
         series = self.bcb.painel_brasil(n=2)
         contexto = self.ibge.contexto_brasil(limite_ufs=5)
         lattes = self.lattes.search(topic, limit=1)
+        datasets = self._gather_datasets(topic, limit_per_source)
 
-        articles = self._dedupe(scielo + crossref + openalex)[: self.max_sources]
+        articles = self._dedupe(scielo + crossref + openalex + bdtd)[: self.max_sources]
+        indicadores = self._gather_indicadores()
         return {
             "topico": topic,
             "coletado_em": utcnow_iso(),
@@ -540,12 +1117,58 @@ class BrazilianDataAggregator:
             "artigos_crossref": len(crossref),
             "artigos_scielo": len(scielo),
             "artigos_openalex": len(openalex),
+            "artigos_bdtd": len(bdtd),
+            "datasets": datasets,
             "series_brasil": series,
+            "indicadores_brasil": indicadores,
             "contexto_brasil": contexto,
             "lattes": lattes,
-            "total_fontes": len(articles) + len(series) + len(contexto.get("unidades_federacao", [])),
+            "total_fontes": len(articles)
+            + len(series)
+            + len(datasets)
+            + len(indicadores)
+            + len(contexto.get("unidades_federacao", [])),
             "modo": "online",
         }
+
+    def _gather_datasets(self, topic: str, limit: int) -> list[dict[str, Any]]:
+        """Catálogos de dados (Dataverse, Kaggle) e microdados (DATASUS, INPE).
+
+        Só as fontes leves rodam por padrão; os microdados do DATASUS e o
+        PRODES/INPE só são consultados quando ``incluir_microdados`` está ligado,
+        porque baixam centenas de MB.
+        """
+        datasets = self.dataverse.search(topic, limit=limit)
+        datasets += self.kaggle.search(topic, limit=limit)
+        if self.incluir_microdados:
+            try:
+                prodes = self.inpe.desmatamento_por_estado(self.prodes_ano)
+                if prodes:
+                    datasets.append(
+                        {
+                            "fonte": "inpe/prodes",
+                            "titulo": f"Desmatamento PRODES {self.prodes_ano} por UF (km²)",
+                            "ano": self.prodes_ano,
+                            "registros": prodes,
+                            "url": "https://terrabrasilis.dpi.inpe.br/",
+                        }
+                    )
+            except Exception as exc:  # noqa: BLE001 - fonte externa instável
+                logger.warning("INPE/PRODES indisponível: %s", exc)
+        return datasets
+
+    def _gather_indicadores(self) -> list[dict[str, Any]]:
+        """Indicadores agregados reais (SIDRA) usados como contexto do país."""
+        indicadores: list[dict[str, Any]] = []
+        try:
+            indicadores += self.sidra.producao_agricola()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SIDRA (produção agrícola) indisponível: %s", exc)
+        try:
+            indicadores += self.sidra.alfabetizacao()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SIDRA (alfabetização) indisponível: %s", exc)
+        return indicadores
 
     @staticmethod
     def _dedupe(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -607,4 +1230,26 @@ class BrazilianDataAggregator:
             for uf in ufs:
                 pop = uf.get("populacao_estimada") or "n/d"
                 lines.append(f"- {uf.get('nome')} ({uf.get('sigla')}): população estimada {pop}")
+        indicadores = gathered.get("indicadores_brasil", [])
+        if indicadores:
+            lines.append("\nINDICADORES AGREGADOS (IBGE/SIDRA):")
+            for item in indicadores[:6]:
+                if "producao_t" in item:
+                    lines.append(
+                        f"- Produção de {item.get('produto')} em {item.get('uf')} ({item.get('ano')}): "
+                        f"{item.get('producao_t')} t [{item.get('fonte')}]"
+                    )
+                else:
+                    lines.append(
+                        f"- Alfabetização (15+) em {item.get('uf')} ({item.get('ano')}): "
+                        f"{item.get('alfabetizacao_pct')}% [{item.get('fonte')}]"
+                    )
+        datasets = gathered.get("datasets", [])
+        if datasets:
+            lines.append("\nCONJUNTOS DE DADOS PÚBLICOS (repositórios):")
+            for item in datasets[:6]:
+                ident = item.get("identificador") or item.get("url") or "s/identificador"
+                lines.append(
+                    f"- {item.get('titulo')} [{item.get('fonte')}, {ident}]"
+                )
         return "\n".join(lines)

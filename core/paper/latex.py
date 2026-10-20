@@ -15,10 +15,16 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.paper.headings import (
+    renumber_subsections,
+    strip_ai_declaration_blocks,
+    strip_duplicate_heading,
+)
 from core.utils import ensure_dir, setup_logger
 
 logger = setup_logger(__name__)
@@ -91,13 +97,18 @@ class LaTeXFormatter:
     ) -> str:
         """Monta o documento LaTeX completo."""
         body_parts: list[str] = []
-        for key, heading in (
-            ("introducao", "Introdução"),
-            ("metodologia", "Metodologia"),
-            ("resultados", "Resultados e Discussão"),
-            ("conclusao", "Conclusão"),
+        for numero, key, heading in (
+            (1, "introducao", "Introdução"),
+            (2, "metodologia", "Metodologia"),
+            (3, "resultados", "Resultados e Discussão"),
+            (4, "conclusao", "Conclusão"),
         ):
-            content = self._escape(sections.get(key, "").strip())
+            # Remover o título do LLM antes de escapar: depois do escape os
+            # acentos viram comandos e a comparação com o título esperado falha.
+            body = strip_duplicate_heading(sections.get(key, "").strip(), heading)
+            body = strip_ai_declaration_blocks(body)
+            body = renumber_subsections(body, numero)
+            content = self._escape(body)
             if content:
                 body_parts.append(f"\\section{{{heading}}}\n{content}\n")
         if figures:
@@ -111,8 +122,12 @@ class LaTeXFormatter:
             "title": self._escape(metadata.get("titulo") or topic),
             "authors": self._escape("; ".join(metadata.get("autores") or ["AI Cientista Brasileiro"])),
             "date": self._escape(str(metadata.get("data", ""))),
-            "resumo": self._escape(sections.get("resumo", "").strip()),
-            "abstract": self._escape(sections.get("abstract", "").strip()),
+            "resumo": self._escape(
+                strip_duplicate_heading(sections.get("resumo", "").strip(), "Resumo")
+            ),
+            "abstract": self._escape(
+                strip_duplicate_heading(sections.get("abstract", "").strip(), "Abstract")
+            ),
             "palavras_chave": self._escape("; ".join(metadata.get("palavras_chave", []))),
             "keywords": self._escape("; ".join(metadata.get("keywords", []))),
             "body": "\n".join(body_parts),
@@ -125,28 +140,51 @@ class LaTeXFormatter:
         }
 
     def compile_pdf(self, tex_path: Path, output_dir: Path | None = None) -> str | None:
-        """Compila o ``.tex`` com ``pdflatex``; devolve o caminho do PDF ou ``None``."""
+        """Compila o ``.tex`` com ``pdflatex``; devolve o caminho do PDF ou ``None``.
+
+        A compilação ocorre em um diretório temporário para não sobrescrever o
+        ``paper.pdf`` produzido pelo formatador ABNT; o resultado é copiado para
+        ``paper_latex.pdf``. Nunca levanta exceção: qualquer falha (binário
+        ausente, erro de LaTeX, timeout, saída não-UTF-8) apenas registra aviso e
+        devolve ``None``, para que o ciclo continue com os demais artefatos.
+        """
         if not self.available():
             logger.info("pdflatex não encontrado; mantendo apenas o .tex")
             return None
         workdir = Path(output_dir or tex_path.parent)
         ensure_dir(workdir)
         try:
-            process = subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", f"-output-directory={workdir}", str(tex_path)],
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
-            pdf_path = workdir / (tex_path.stem + ".pdf")
-            if process.returncode == 0 and pdf_path.exists():
-                return str(pdf_path)
-            tail = (process.stdout or process.stderr or "").strip().splitlines()[-6:]
-            logger.warning("pdflatex falhou: %s", " | ".join(tail))
+            with tempfile.TemporaryDirectory() as build_dir:
+                # pdflatex escreve mensagens em Latin-1 sob o babel brasileiro;
+                # sem errors="replace" a decodificação UTF-8 padrão quebra tudo.
+                process = subprocess.run(
+                    [
+                        "pdflatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        f"-output-directory={build_dir}",
+                        str(tex_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.timeout_seconds,
+                    check=False,
+                )
+                built = Path(build_dir) / (tex_path.stem + ".pdf")
+                if process.returncode == 0 and built.exists():
+                    target = workdir / (tex_path.stem + "_latex.pdf")
+                    shutil.copyfile(built, target)
+                    return str(target)
+                tail = (process.stdout or process.stderr or "").strip().splitlines()[-6:]
+                logger.warning("pdflatex falhou: %s", " | ".join(tail))
+                return None
+        except subprocess.TimeoutExpired:
+            logger.warning("pdflatex excedeu o tempo limite de %ss", self.timeout_seconds)
             return None
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            logger.warning("Erro ao compilar LaTeX: %s", exc)
+        except Exception as exc:  # noqa: BLE001 - artefato opcional nunca derruba o ciclo
+            logger.warning("Erro ao compilar LaTeX: %s: %s", type(exc).__name__, exc)
             return None
 
     def write(
@@ -158,7 +196,11 @@ class LaTeXFormatter:
         output_dir: Path,
         figures: list[str] | None = None,
     ) -> dict[str, str | None]:
-        """Grava ``paper.tex`` e, quando possível, compila ``paper.pdf``."""
+        """Grava ``paper.tex`` e, quando possível, compila ``paper_latex.pdf``.
+
+        O PDF do LaTeX usa nome distinto de ``paper.pdf`` (gerado pelo formatador
+        ABNT) para que os dois artefatos coexistam em vez de se sobrescreverem.
+        """
         ensure_dir(output_dir)
         tex_path = output_dir / "paper.tex"
         tex_path.write_text(self.render_tex(topic, sections, references, metadata, figures), encoding="utf-8")
@@ -188,9 +230,57 @@ class LaTeXFormatter:
 
     @staticmethod
     def _escape(text: str) -> str:
-        """Escapa caracteres reservados do LaTeX preservando acentuação UTF-8."""
+        """Escapa caracteres reservados do LaTeX preservando acentuação UTF-8.
+
+        LLMs reais emitem espaços e hífens "tipográficos" (U+202F, U+00A0,
+        U+2011) e letras gregas que o ``inputenc``/``fontenc`` não mapeia, e que
+        abortam o ``pdflatex``. Esses casos viram equivalentes ASCII ou comandos
+        em modo matemático. Os comandos gerados aqui são inseridos por
+        placeholder para não serem re-escapados na etapa seguinte.
+        """
         if not text:
             return ""
+        placeholders: dict[str, str] = {}
+
+        def stash(latex: str) -> str:
+            key = f"\x00{len(placeholders)}\x00"
+            placeholders[key] = latex
+            return key
+
+        typography = {
+            "\u00a0": " ",   # NBSP
+            "\u202f": " ",   # narrow no-break space
+            "\u2009": " ",   # thin space
+            "\u200b": "",    # zero-width space
+            "\u2011": "-",   # non-breaking hyphen
+            "\u2012": "-",
+            "\u2013": "--",
+            "\u2014": "---",
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u201c": "``",
+            "\u201d": "''",
+            "\u2026": stash(r"\ldots{}"),
+        }
+        greek = {
+            "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "epsilon",
+            "θ": "theta", "λ": "lambda", "μ": "mu", "π": "pi", "ρ": "rho",
+            "σ": "sigma", "τ": "tau", "φ": "phi", "χ": "chi", "ψ": "psi", "ω": "omega",
+            "Δ": "Delta", "Σ": "Sigma", "Ω": "Omega", "Γ": "Gamma", "Λ": "Lambda", "Π": "Pi",
+        }
+        for char, name in greek.items():
+            typography[char] = stash("$" + "\\" + name + "$")
+
+        # Sub/sobrescritos Unicode (ex.: CO₂, km²) usados pelo LLM em unidades.
+        subscript = "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
+        superscript = "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+        for index, char in enumerate(subscript):
+            typography[char] = stash(f"$_{'0123456789+-=()'[index]}$")
+        for index, char in enumerate(superscript):
+            typography[char] = stash(f"$^{'0123456789+-=()'[index]}$")
+
+        text = "".join(typography.get(ch, ch) for ch in text)
+
         replacements = {
             "\\": r"\textbackslash{}",
             "&": r"\&",
@@ -204,5 +294,17 @@ class LaTeXFormatter:
             "^": r"\textasciicircum{}",
         }
         text = "".join(replacements.get(ch, ch) for ch in text)
+
+        # Rede de seguranca: o conjunto inputenc+fontenc so cobre ASCII,
+        # Latin-1 e Latin Extended-A. Qualquer outro simbolo (emoji, setas,
+        # caracteres de controle vindos do LLM) abortaria o pdflatex, entao e
+        # descartado. Os placeholders usam \x00 e passam intactos.
+        text = "".join(
+            ch for ch in text
+            if ch == "\x00" or ord(ch) < 0x0180
+        )
+
+        for key, latex in placeholders.items():
+            text = text.replace(key, latex)
         text = re.sub(r"\n{2,}", "\n\n", text)
         return text

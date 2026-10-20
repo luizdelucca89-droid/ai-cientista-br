@@ -28,6 +28,10 @@ from core.utils import ensure_dir, sha256_text, setup_logger, utcnow_iso
 
 logger = setup_logger(__name__)
 
+# Alguns gateways (Cloudflare, na frente da Groq) bloqueiam clientes sem
+# User-Agent de navegador com o erro 1010.
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 
 # --------------------------------------------------------------------------- #
 # Interface
@@ -127,12 +131,20 @@ def _mock_novelty(prompt: str, seed: int) -> str:
 
 
 def _mock_compliance(prompt: str, seed: int) -> str:
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "divulga_uso_ia": True,
         "tem_limitacoes": True,
         "tem_referencias": True,
         "tem_dados_reprodutiveis": True,
-        "problemas": ["Validade externa limitada pelo uso de dados sintéticos."],
+        "problemas": [
+            (
+                "Validade externa limitada pela cobertura temporal e municipal."
+                if dados_reais
+                else "Validade externa limitada pelo uso de dados sintéticos."
+            )
+        ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -222,17 +234,34 @@ def _mock_analysis(prompt: str, seed: int) -> str:
 
 
 def _mock_review(prompt: str, seed: int) -> str:
-    """Parecer determinístico que varia com a seed, como um revisor real variaria."""
+    """Parecer determinístico que varia com a seed, como um revisor real variaria.
+
+    As críticas precisam fazer sentido para o manuscrito recebido. Se ele descreve
+    observações reais com corte temporal, acusar "dados sintéticos" ou "divisão sem
+    dependência temporal" seria um parecer falso.
+    """
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
+    split_temporal = "temporal" in texto and "treino no passado" in texto
+
     pareceres = ["aceitar com revisões", "revisões maiores", "aceitar com revisões", "aceitar", "revisões maiores"]
     fraquezas = [
-        "Dados sintéticos limitam a validade externa.",
+        (
+            "A cobertura temporal é curta, o que limita a generalização entre anos."
+            if dados_reais
+            else "Dados sintéticos limitam a validade externa."
+        ),
         "Ausência de análise de sensibilidade a hiperparâmetros.",
         "Não há comparação com métodos do estado da arte recentes.",
         "O tamanho amostral não é justificado por análise de poder.",
         "Métricas agregadas escondem desempenho em subgrupos.",
     ]
     erros = [
-        "A divisão treino/teste não considera dependência temporal.",
+        (
+            "O desempenho não é testado em municípios deixados de fora do treino."
+            if split_temporal
+            else "A divisão treino/teste não considera dependência temporal."
+        ),
         "Não há correção para comparações múltiplas.",
         "A seleção de features pode ter vazamento de informação.",
     ]
@@ -265,6 +294,8 @@ def _mock_review(prompt: str, seed: int) -> str:
 
 def _mock_score(prompt: str, seed: int) -> str:
     score = 0.72 + (seed % 20) / 100.0
+    texto = prompt.lower()
+    dados_reais = "observações reais" in texto or "infodengue" in texto
     payload = {
         "score": round(min(score, 0.95), 3),
         "criterios": {
@@ -274,10 +305,50 @@ def _mock_score(prompt: str, seed: int) -> str:
             "clareza": 0.7,
             "aderencia_abnt": 0.75,
         },
-        "problemas": ["Validade externa limitada por dados sintéticos."],
+        "problemas": [
+            (
+                "Validade externa limitada pela cobertura temporal e municipal."
+                if dados_reais
+                else "Validade externa limitada por dados sintéticos."
+            )
+        ],
         "aprovado": True,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _descricao_da_base(resultado: dict[str, Any] | None) -> tuple[str, str]:
+    """Devolve (frase de origem, frase de partição) fiéis aos metadados.
+
+    O texto do mock precisa acompanhar o que o pipeline realmente fez. Antes ele
+    afirmava "base sintética" e "divisão estratificada" mesmo quando o experimento
+    rodou sobre observações reais do InfoDengue com corte temporal.
+    """
+    dataset = (resultado or {}).get("dataset") or {}
+    tipo = dataset.get("tipo")
+    split = dataset.get("split")
+    origem = dataset.get("origem") or ""
+    n = dataset.get("n_amostras")
+
+    if tipo == "dados_reais":
+        base = f"A base é de observações reais ({origem})"
+        if n:
+            base += f", com {n} registros"
+        base += "."
+    else:
+        base = (
+            "A base é sintética e reprodutível (seed fixa), inspirada em séries "
+            "públicas brasileiras."
+        )
+
+    if split == "temporal":
+        particao = (
+            "Os dados foram padronizados e divididos de forma temporal: treino no "
+            "passado e teste em semanas posteriores, para não vazar o futuro no treino."
+        )
+    else:
+        particao = "Os dados foram padronizados e divididos de forma estratificada."
+    return base, particao
 
 
 def _mock_section(prompt: str, seed: int) -> str:
@@ -287,14 +358,15 @@ def _mock_section(prompt: str, seed: int) -> str:
     best_model = (resultado or {}).get("best_model")
     metrics = (resultado or {}).get("metrics") or {}
     best_metrics = metrics.get(best_model, {}) if best_model else {}
+    base_frase, particao_frase = _descricao_da_base(resultado)
 
     head = prompt.upper()[:400]
     if "RESUMO" in head:
         return (
             f"Este artigo avalia modelos de aprendizado de máquina para {topic}, comparando-os "
-            "a uma linha de base estatística sob protocolo reprodutível (semente fixa, divisão "
-            "estratificada e validação cruzada). Os resultados são reportados com intervalos de "
-            "confiança bootstrap e testes de hipótese pareados."
+            "a uma linha de base sob protocolo reprodutível (semente fixa e validação cruzada). "
+            "Os resultados são reportados com intervalos de confiança bootstrap e testes de "
+            "hipótese pareados."
         )
     if "INTRODUCAO" in head:
         return (
@@ -305,11 +377,10 @@ def _mock_section(prompt: str, seed: int) -> str:
         )
     if "METODOLOGIA" in head:
         return (
-            "Adotou-se um desenho comparativo controlado. A base sintética reprodutível imita séries "
-            "com sazonalidade e tendência, inspirada em indicadores públicos brasileiros. Os dados "
-            "foram padronizados e divididos de forma estratificada. Compararam-se uma linha de base "
-            "estatística e três modelos de aprendizado de máquina, avaliados por acurácia, F1 e AUC, "
-            "com intervalos de confiança bootstrap e testes t pareado e de Wilcoxon."
+            f"Adotou-se um desenho comparativo controlado. {base_frase} {particao_frase} "
+            "Compararam-se uma linha de base e três modelos de aprendizado de máquina, avaliados "
+            "por acurácia, F1 e AUC, com intervalos de confiança bootstrap e testes t pareado e de "
+            "Wilcoxon."
         )
     if "RESULTADOS" in head:
         if best_model and best_metrics:
@@ -336,9 +407,8 @@ def _mock_section(prompt: str, seed: int) -> str:
     if "CONCLUSAO" in head:
         return (
             f"Conclui-se que modelos de aprendizado de máquina são promissores para {topic}, "
-            "porém a evidência é preliminar: a base é sintética e o ganho frente à linha de base "
-            "é limitado. Trabalhos futuros devem replicar o protocolo em bases públicas reais e "
-            "explorar validação temporal externa."
+            "porém a evidência é preliminar: o ganho frente à linha de base é limitado. Trabalhos "
+            "futuros devem ampliar a cobertura temporal e testar a generalização entre municípios."
         )
     return (
         f"Este trabalho investiga {topic} com protocolo reprodutível, métricas padronizadas e "
@@ -399,6 +469,25 @@ def _topic_from(prompt: str) -> str:
 # --------------------------------------------------------------------------- #
 # OpenAI-compatible
 # --------------------------------------------------------------------------- #
+def _parse_retry_hint(message: str) -> float | None:
+    """Extrai os segundos sugeridos por um HTTP 429.
+
+    Os provedores usam formatos diferentes: ``try again in 27.66s`` (Groq por
+    minuto) e ``try again in 26m16.8s`` (Groq por dia). Sem entender o formato
+    com minutos, o cliente esperava o backoff genérico e insistia num provider
+    que só voltaria horas depois.
+    """
+    match = re.search(
+        r"try again in\s+(?:(\d+)\s*m)?\s*([0-9.]+)\s*s",
+        message,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    minutos = float(match.group(1)) if match.group(1) else 0.0
+    return minutos * 60.0 + float(match.group(2))
+
+
 @dataclass
 class OpenAICompatibleProvider:
     """Cliente HTTP para endpoints compatíveis com ``/chat/completions``."""
@@ -406,13 +495,23 @@ class OpenAICompatibleProvider:
     model: str = "gpt-4o-mini"
     base_url: str = "https://api.openai.com/v1"
     api_key: str | None = None
+    api_key_env: str | None = None
     timeout: int = 60
     temperature: float = 0.2
     max_tokens: int = 2048
     name: str = "openai_compatible"
 
     def __post_init__(self) -> None:
-        self.api_key = self.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AI_CIENTISTA_API_KEY")
+        # api_key_env permite empilhar vários provedores gratuitos, cada um com
+        # a sua própria variável (GROQ_API_KEY, GEMINI_API_KEY...), sem que um
+        # sobrescreva o outro via OPENAI_API_KEY.
+        if self.api_key_env:
+            self.api_key = self.api_key or os.getenv(self.api_key_env)
+        else:
+            self.api_key = self.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AI_CIENTISTA_API_KEY")
+        # OPENAI_BASE_URL é tratada por core.config.ENV_OVERRIDES, que a mapeia
+        # para ``llm.base_url``. Ler a variável aqui de novo inverteria a
+        # precedência e sobrescreveria um base_url passado explicitamente.
         self.base_url = self.base_url.rstrip("/")
 
     def available(self) -> bool:
@@ -420,7 +519,7 @@ class OpenAICompatibleProvider:
 
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> str:
         if not self.available():
-            raise RuntimeError("OPENAI_API_KEY não definida")
+            raise RuntimeError(f"chave ausente para o provider {self.name}")
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -437,6 +536,9 @@ class OpenAICompatibleProvider:
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
+                # Sem um User-Agent explícito o Cloudflare da Groq responde 1010
+                # ("browser signature") e bloqueia o cliente urllib.
+                "User-Agent": USER_AGENT,
             },
             method="POST",
         )
@@ -517,7 +619,12 @@ class LLMClient:
     temperature: float = 0.2
     retries: int = 2
     history: list[dict[str, Any]] = field(default_factory=list)
+    failures: dict[str, int] = field(default_factory=dict)
     _lock: Any = field(default=None, repr=False)
+
+    # Acima disso, esperar pela API não compensa: o provider provavelmente está
+    # com o teto diário esgotado ("try again in 26m"). Melhor passar ao próximo.
+    MAX_ESPERA_POR_TENTATIVA: float = 30.0
 
     def __post_init__(self) -> None:
         import threading
@@ -525,9 +632,19 @@ class LLMClient:
         if self._lock is None:
             self._lock = threading.Lock()
 
+    def _signature(self) -> str:
+        """Identifica a cadeia de providers para compor a chave de cache.
+
+        Sem isto, uma resposta do ``mock`` já em cache seria devolvida numa
+        execução com um LLM real, mascarando completamente o provider escolhido.
+        """
+        return ",".join(f"{p.name}:{getattr(p, 'model', '')}" for p in self.providers)
+
     def complete(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
         temperature = float(kwargs.pop("temperature", self.temperature))
-        key = sha256_text(f"{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}")
+        key = sha256_text(
+            f"{self._signature()}||{system or ''}||{prompt}||{json.dumps(kwargs, sort_keys=True, default=str)}||{temperature}"
+        )
         if self.cache:
             hit = self.cache.get(key)
             if hit:
@@ -551,10 +668,41 @@ class LLMClient:
                 except Exception as exc:  # noqa: BLE001 - fallback deliberado
                     errors.append(f"{provider.name} (tentativa {attempt + 1}): {exc}")
                     logger.warning("Provider %s falhou: %s", provider.name, exc)
-                    time.sleep(min(2 ** attempt * 0.5, 4))
+                    with self._lock:
+                        self.failures[provider.name] = self.failures.get(provider.name, 0) + 1
+                    if attempt < self.retries:
+                        espera = self._backoff(exc, attempt)
+                        # Se a API pede mais do que vale a pena esperar (ex.: teto
+                        # diário de tokens, "try again in 26m"), insistir neste
+                        # provider só queima tempo: passa para o próximo.
+                        if espera > self.MAX_ESPERA_POR_TENTATIVA:
+                            pedido = _parse_retry_hint(str(exc))
+                            logger.warning(
+                                "Provider %s pediu %s de espera; pulando para o próximo da cadeia",
+                                provider.name,
+                                f"{pedido:.0f}s" if pedido else f">{self.MAX_ESPERA_POR_TENTATIVA:.0f}s",
+                            )
+                            break
+                        time.sleep(espera)
         message = "; ".join(errors) or "nenhum provider configurado"
         logger.error("Todos os providers falharam: %s", message)
         raise RuntimeError(f"Falha em todos os providers de LLM: {message}")
+
+    @staticmethod
+    def _backoff(exc: Exception, attempt: int) -> float:
+        """Calcula a espera antes da próxima tentativa.
+
+        Em HTTP 429 a API informa quanto esperar ("try again in 27.6s"); ignorar
+        isso esgota as tentativas e derruba o pipeline para o provider mock sem
+        que o usuário perceba. Respeitamos o valor sugerido, com um teto para não
+        travar indefinidamente.
+        """
+        message = str(exc)
+        if "429" in message or "rate limit" in message.lower():
+            # +1s de folga: pedir exatamente o tempo sugerido costuma voltar 429.
+            hint = _parse_retry_hint(message)
+            return min((hint + 1.0) if hint else (20.0 * (attempt + 1)), 65.0)
+        return min(2 ** attempt * 0.5, 8.0)
 
     def _record(self, prompt: str, text: str, provider: str, cached: bool, latency: float) -> None:
         entry = {
@@ -574,6 +722,7 @@ class LLMClient:
     def stats(self) -> dict[str, Any]:
         with self._lock:
             history = list(self.history)
+            failures = dict(self.failures)
         total = len(history)
         cached = sum(1 for h in history if h["cached"])
         by_provider: dict[str, int] = {}
@@ -589,6 +738,10 @@ class LLMClient:
             "chamadas": total,
             "cache_hits": cached,
             "por_provider": by_provider,
+            # Configurados inclui os que nunca responderam: sem isso, uma cadeia
+            # em que todos falharam pareceria "nenhum LLM real configurado".
+            "providers_configurados": [p.name for p in self.providers],
+            "falhas_por_provider": failures,
             "tokens_estimados": {"prompt": prompt_tokens, "resposta": response_tokens, "total": prompt_tokens + response_tokens},
             "latencia_total_s": round(latency, 3),
         }
@@ -609,28 +762,63 @@ def build_llm_client(config: dict[str, Any], use_cache: bool | None = None) -> L
     cache_path = Path(cache_cfg.get("path", "outputs/llm_cache.sqlite3"))
     cache = LLMCache(path=cache_path, enabled=bool(enabled)) if enabled else None
 
-    order = llm_cfg.get("fallback_order") or [llm_cfg.get("provider", "mock")]
+    # Duas formas de configurar a cadeia de providers:
+    #   "providers": [ {...}, {...} ]  -> lista nomeada (permite empilhar tiers
+    #                                     gratuitos de vários provedores)
+    #   "fallback_order": ["openai_compatible", "mock"] -> forma legada
+    named = llm_cfg.get("providers")
     providers: list[LLMProvider] = []
-    for name in order:
-        if name == "openai_compatible":
-            providers.append(
-                OpenAICompatibleProvider(
-                    model=llm_cfg.get("model", "gpt-4o-mini"),
-                    base_url=llm_cfg.get("base_url", "https://api.openai.com/v1"),
-                    timeout=int(llm_cfg.get("timeout", 60)),
-                    temperature=float(llm_cfg.get("temperature", 0.2)),
-                    max_tokens=int(llm_cfg.get("max_tokens", 2048)),
-                )
-            )
-        elif name == "selenium":
-            try:
-                from llm_providers.bypass.selenium_llm import SeleniumProvider
+    if isinstance(named, list) and named:
+        for entry in named:
+            if not isinstance(entry, dict):
+                continue
+            kind = entry.get("type", "openai_compatible")
+            if kind == "mock":
+                providers.append(MockProvider())
+            elif kind == "selenium":
+                try:
+                    from llm_providers.bypass.selenium_llm import SeleniumProvider
 
-                providers.append(SeleniumProvider())
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Provider selenium indisponível: %s", exc)
-        elif name == "mock":
-            providers.append(MockProvider())
+                    providers.append(SeleniumProvider())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Provider selenium indisponível: %s", exc)
+            else:
+                providers.append(
+                    OpenAICompatibleProvider(
+                        name=entry.get("name", kind),
+                        model=entry.get("model", llm_cfg.get("model", "gpt-4o-mini")),
+                        base_url=entry.get("base_url", llm_cfg.get("base_url", "https://api.openai.com/v1")),
+                        api_key=entry.get("api_key"),
+                        api_key_env=entry.get("api_key_env"),
+                        timeout=int(entry.get("timeout", llm_cfg.get("timeout", 60))),
+                        temperature=float(entry.get("temperature", llm_cfg.get("temperature", 0.2))),
+                        max_tokens=int(entry.get("max_tokens", llm_cfg.get("max_tokens", 2048))),
+                    )
+                )
+
+    if not providers:
+        order = llm_cfg.get("fallback_order") or [llm_cfg.get("provider", "mock")]
+        for name in order:
+            if name == "openai_compatible":
+                providers.append(
+                    OpenAICompatibleProvider(
+                        model=llm_cfg.get("model", "gpt-4o-mini"),
+                        base_url=llm_cfg.get("base_url", "https://api.openai.com/v1"),
+                        timeout=int(llm_cfg.get("timeout", 60)),
+                        temperature=float(llm_cfg.get("temperature", 0.2)),
+                        max_tokens=int(llm_cfg.get("max_tokens", 2048)),
+                    )
+                )
+            elif name == "selenium":
+                try:
+                    from llm_providers.bypass.selenium_llm import SeleniumProvider
+
+                    providers.append(SeleniumProvider())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Provider selenium indisponível: %s", exc)
+            elif name == "mock":
+                providers.append(MockProvider())
+
     if not providers:
         providers.append(MockProvider())
     return LLMClient(

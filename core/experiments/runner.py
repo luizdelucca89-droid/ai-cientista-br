@@ -1,17 +1,21 @@
 """Execução real de experimentos com análise estatística.
 
-O runner gera uma base sintética **reprodutível** (seed fixa) inspirada em
-séries públicas brasileiras, treina modelos reais (baseline estatístico,
-regressão logística, floresta aleatória e gradient boosting), calcula métricas
-com intervalos de confiança bootstrap e aplica testes de hipótese pareados.
+O runner trabalha **exclusivamente** com observações reais de APIs públicas
+brasileiras (ver ``core.experiments.datasets``): as features são medições reais e
+o alvo é um evento observado. Não há gerador sintético nem preenchimento
+fabricado.
 
-Os números produzidos aqui são reais (executados de fato) e são os únicos
-resultados numéricos usados no manuscrito.
+Quando não existe fonte pública para o tópico, o runner levanta
+``RealDataUnavailableError`` e o ciclo falha de forma explícita — é preferível
+admitir a ausência de dados a publicar números inventados.
+
+Em todos os caminhos os números são reais (executados de fato): modelos de
+verdade, métricas com intervalo de confiança bootstrap e testes de hipótese
+pareados.
 """
 
 from __future__ import annotations
 
-import json
 import platform
 import sys
 import time
@@ -20,6 +24,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from core.experiments.datasets import RealDataUnavailableError, build_real_dataset
 from core.utils import ensure_dir, setup_logger, write_json
 
 logger = setup_logger(__name__)
@@ -55,38 +60,7 @@ class ExperimentResult:
         }
 
 
-def generate_synthetic_dataset(n_samples: int = 600, n_features: int = 6, seed: int = 42) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
-    """Gera uma base sintética reprodutível com sinal aprendível e ruído.
-
-    A estrutura imita um problema de classificação binária com sazonalidade e
-    variáveis contextuais — análogo a prever um evento (ex.: surto) a partir de
-    indicadores históricos.
-    """
-    rng = np.random.default_rng(seed)
-    X = rng.normal(size=(n_samples, n_features))
-    t = np.arange(n_samples)
-    X[:, 0] = np.sin(2 * np.pi * t / 52) + 0.3 * rng.normal(size=n_samples)  # sazonalidade
-    X[:, 1] = (t % 12) / 12.0 + 0.1 * rng.normal(size=n_samples)  # tendência
-    logits = (
-        1.2 * X[:, 0]
-        + 0.8 * X[:, 1]
-        - 0.6 * X[:, 2]
-        + 0.4 * X[:, 3]
-        + 0.5 * rng.normal(size=n_samples)
-    )
-    prob = 1 / (1 + np.exp(-logits))
-    y = (prob > np.median(prob)).astype(int)
-    meta = {
-        "n_amostras": n_samples,
-        "n_variaveis": n_features,
-        "balanceamento": {"positivos": int(y.sum()), "negativos": int((1 - y).sum())},
-        "origem": "sintética reprodutível (seed fixa), inspirada em séries públicas brasileiras",
-        "seed": seed,
-    }
-    return X, y, meta
-
-
-def _bootstrap_ci(values: np.ndarray, statistic: Callable[[np.ndarray], float], n_boot: int = 500, alpha: float = 0.05, seed: int = 42) -> tuple[float, float]:
+def _bootstrap_ci(values: np.ndarray, statistic: Callable[[np.ndarray], float], n_boot: int = 1000, alpha: float = 0.05, seed: int = 42) -> tuple[float, float]:
     rng = np.random.default_rng(seed)
     stats = [statistic(rng.choice(values, size=len(values), replace=True)) for _ in range(n_boot)]
     lo, hi = np.percentile(stats, [100 * alpha / 2, 100 * (1 - alpha / 2)])
@@ -95,16 +69,22 @@ def _bootstrap_ci(values: np.ndarray, statistic: Callable[[np.ndarray], float], 
 
 @dataclass
 class ExperimentRunner:
-    """Executa o protocolo experimental completo."""
+    """Executa o protocolo experimental completo sobre dados observados."""
 
     seed: int = 42
     test_size: float = 0.3
     alpha: float = 0.05
     output_dir: Any = "outputs"
     allow_code_execution: bool = True
+    cache_dir: Any = None
+    offline: bool = False
 
     def run(self, topic: str, hypothesis: dict[str, Any], plan: dict[str, Any] | None = None) -> ExperimentResult:
-        """Executa o experimento e devolve métricas + testes estatísticos."""
+        """Executa o experimento e devolve métricas + testes estatísticos.
+
+        Levanta ``RealDataUnavailableError`` se não houver fonte pública real para
+        o tópico — nunca cai para uma base sintética.
+        """
         started = time.time()
         hyp_id = hypothesis.get("id", "H1")
 
@@ -114,14 +94,19 @@ class ExperimentRunner:
         from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-        from sklearn.model_selection import cross_val_score, train_test_split
+        from sklearn.model_selection import TimeSeriesSplit, cross_val_score
         from sklearn.preprocessing import StandardScaler
         from scipy import stats
 
-        X, y, meta = generate_synthetic_dataset(seed=self.seed)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=self.seed, stratify=y
-        )
+        real = build_real_dataset(topic, cache_dir=self.cache_dir, offline=self.offline)
+        if real is None:
+            raise RealDataUnavailableError(
+                f"Nenhuma fonte pública de observações reais para o tópico: {topic!r}. "
+                "O sistema não gera dados sintéticos; escolha um tema com dados abertos "
+                "(dengue, desmatamento, agricultura, educação) ou registre a fonte."
+            )
+        X, y, meta = real.X, real.y, real.meta
+        X_train, X_test, y_train, y_test = self._split_temporal(X, y)
         scaler = StandardScaler().fit(X_train)
         X_train_s, X_test_s = scaler.transform(X_train), scaler.transform(X_test)
 
@@ -137,11 +122,11 @@ class ExperimentRunner:
 
         for name, model in models.items():
             if model is None:
-                # Linha de base estatística real: regra de limiar sobre o sinal
-                # sazonal (feature 0), não a classe majoritária — esta última
-                # produziria F1 trivialmente nulo e uma comparação vazia.
-                y_pred = (X_test[:, 0] > 0).astype(int)
-                y_score = X_test[:, 0]
+                # Linha de base honesta e específica do problema: para série
+                # temporal, persistir o estado atual (dengue: nível de alerta já
+                # ativo; painéis anuais: repetir a tendência recente). É o que um
+                # serviço faria sem modelo algum.
+                y_pred, y_score = self._baseline_prediction(X_test, meta)
             else:
                 model.fit(X_train_s, y_train)
                 y_pred = model.predict(X_test_s)
@@ -156,7 +141,12 @@ class ExperimentRunner:
                 auc = float(roc_auc_score(y_test, y_score))
             except ValueError:
                 auc = float("nan")
-            cv = cross_val_score(model, X, y, cv=5, scoring="f1") if model is not None else np.array([f1] * 5)
+            # Série temporal não pode usar CV aleatório: dobrar o futuro no
+            # treino inflaria as métricas. TimeSeriesSplit respeita a ordem.
+            if model is not None:
+                cv = cross_val_score(model, X, y, cv=TimeSeriesSplit(n_splits=5), scoring="f1")
+            else:
+                cv = np.array([f1] * 5)
             lo, hi = _bootstrap_ci((y_pred == y_test).astype(float), np.mean, alpha=self.alpha, seed=self.seed)
             metrics[name] = {
                 "acuracia": round(acc, 4),
@@ -217,6 +207,36 @@ class ExperimentRunner:
         )
         result.figures = self._save_figures(result)
         return result
+
+    # ------------------------------------------------------------- data splits
+    def _split_temporal(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Corte cronológico: treina no passado, testa no futuro.
+
+        Em série temporal, amostrar o teste ao acaso deixaria semanas futuras no
+        treino — o modelo "veria" o surto antes de prevê-lo. O corte é por
+        posição porque os construtores de dataset devolvem as amostras ordenadas
+        por tempo.
+        """
+        corte = int(round(len(X) * (1 - self.test_size)))
+        corte = max(1, min(corte, len(X) - 1))
+        return X[:corte], X[corte:], y[:corte], y[corte:]
+
+    def _baseline_prediction(self, X_test: np.ndarray, meta: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+        """Previsão da linha de base, escolhida conforme a origem dos dados."""
+        baseline = meta.get("baseline") or {}
+        coluna = baseline.get("coluna")
+        variaveis = list(meta.get("variaveis", []))
+        if baseline.get("tipo") == "persistencia" and coluna in variaveis:
+            limiar = float(baseline.get("limiar", 3))
+            atual = X_test[:, variaveis.index(coluna)]
+            return (atual >= limiar).astype(int), atual
+        if baseline.get("tipo") == "tendencia" and coluna in variaveis:
+            # Repete a direção do último movimento observado.
+            limiar = float(baseline.get("limiar", 0.0))
+            variacao = X_test[:, variaveis.index(coluna)]
+            return (variacao > limiar).astype(int), variacao
+        # Fallback neutro: mantém a classe majoritária do treino como previsão.
+        return np.zeros(len(X_test), dtype=int), np.zeros(len(X_test))
 
     # -------------------------------------------------------------- artifacts
     def _save_figures(self, result: ExperimentResult) -> list[str]:

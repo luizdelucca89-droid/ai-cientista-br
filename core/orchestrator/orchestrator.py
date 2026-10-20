@@ -36,6 +36,7 @@ from core.experiments import ExperimentRunner, save_experiment
 from core.memory import MemorySystem
 from core.paper import ABNTFormatter, LaTeXFormatter
 from core.review import ReviewerPanel
+from core.review.numeros import collect_numbers, find_unsupported_numbers
 from core.utils import ensure_dir, setup_logger, slugify, utcnow_iso, write_json
 from integrations import BrazilianDataAggregator
 from llm_providers import build_llm_client
@@ -81,6 +82,8 @@ class Orchestrator:
                 alpha=float(self.config.get("experiments", "alpha", default=0.05)),
                 output_dir=self.output_dir,
                 allow_code_execution=bool(self.config.get("experiments", "allow_code_execution", default=True)),
+                cache_dir=str(self.output_dir / "dataset_cache"),
+                offline=bool(self.config.get("integrations", "offline", default=False)),
             )
 
         agents_cfg = self.config.get("agents", default={}) or {}
@@ -240,6 +243,14 @@ class Orchestrator:
         compliance = self.agents["validador"].check_compliance(manuscript)
         score = self._extract_score(validation.content)
 
+        fidelidade = self._check_numeric_fidelity(manuscript, plan, experiment, gathered)
+        if fidelidade["numeros_sem_suporte"]:
+            logger.warning(
+                "Fidelidade numérica: %s valor(es) sem lastro nos dados: %s",
+                len(fidelidade["numeros_sem_suporte"]),
+                fidelidade["numeros_sem_suporte"],
+            )
+
         panel_result: dict[str, Any] = {}
         if self.panel is not None:
             evidence = self.aggregator.reference_context(gathered) if (self.aggregator and gathered) else ""
@@ -249,9 +260,42 @@ class Orchestrator:
             "validacao": validation.content,
             "conformidade": compliance.content,
             "score": score,
+            "fidelidade_numerica": fidelidade,
             "painel_revisao": panel_result,
             "decisao_painel": panel_result.get("decisao_final"),
             "consenso_painel": panel_result.get("consenso"),
+        }
+
+    def _check_numeric_fidelity(
+        self,
+        manuscript: str,
+        plan: dict[str, Any],
+        experiment: dict[str, Any],
+        gathered: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Confere se cada número do manuscrito tem lastro nos dados reais.
+
+        O validador por LLM lê e opina, mas não compara dígito a dígito — deixou
+        passar um ``200201`` onde o dado observado dizia ``202201``. Esta
+        conferência é determinística e roda sobre as seções do manuscrito (sem
+        referências, que trazem anos e códigos de norma alheios ao experimento).
+        """
+        fontes_estrutura = {
+            "resultado": experiment.get("resultado"),
+            "hipotese": experiment.get("hipotese_principal"),
+            "plano": plan,
+            "evidencias": gathered,
+            # Valores de método legítimos, definidos na configuração.
+            "alpha": self.config.get("experiments", "alpha", default=0.05),
+            "test_size": self.config.get("experiments", "test_size", default=0.3),
+            "seed": self.config.get("seed", default=None),
+        }
+        fontes = collect_numbers(fontes_estrutura)
+        suspeitos = find_unsupported_numbers(manuscript, fontes)
+        return {
+            "numeros_verificados_de": len(fontes),
+            "numeros_sem_suporte": suspeitos,
+            "ok": not suspeitos,
         }
 
     # ------------------------------------------------------------------- main

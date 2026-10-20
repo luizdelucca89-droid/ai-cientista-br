@@ -68,7 +68,60 @@
       "base_url": "https://servicodados.ibge.gov.br/api",
       "timeout": 15,
       "rate_limit_seconds": 0.5
-    }
+    },
+    "infodengue": {
+      "enabled": true,
+      "base_url": "https://info.dengue.mat.br/api",
+      "timeout": 30,
+      "rate_limit_seconds": 1.0
+    },
+    "bdtd": {
+      "enabled": true,
+      "base_url": "https://bdtd.ibict.br/vufind/api/v1/search",
+      "timeout": 20,
+      "rate_limit_seconds": 1.0
+    },
+    "datasus": {
+      "enabled": true,
+      "base_url": "ftp.datasus.gov.br",
+      "timeout": 60,
+      "cache_dir": "outputs/datasus_cache",
+      "notes": "Microdados via FTP oficial (.dbc). Requer pysus/pyreaddbc/dbfread."
+    },
+    "inpe": {
+      "enabled": true,
+      "base_url": "https://terrabrasilis.dpi.inpe.br/geoserver/ows",
+      "layer": "prodes-amazon-nb:yearly_deforestation_biome",
+      "ano": 2022,
+      "timeout": 60,
+      "rate_limit_seconds": 1.0
+    },
+    "sidra": {
+      "enabled": true,
+      "base_url": "https://apisidra.ibge.gov.br/values",
+      "timeout": 30,
+      "rate_limit_seconds": 0.5
+    },
+    "dataverse": {
+      "enabled": true,
+      "base_url": "https://dataverse.fgv.br/api/v1/search",
+      "timeout": 30,
+      "rate_limit_seconds": 1.0
+    },
+    "kaggle": {
+      "enabled": true,
+      "base_url": "https://www.kaggle.com/api/v1/datasets/list",
+      "timeout": 20,
+      "rate_limit_seconds": 1.0,
+      "notes": "Apenas metadados públicos; download exige credenciais."
+    },
+    "transparencia": {
+      "enabled": false,
+      "base_url": "https://api.portaldatransparencia.gov.br/api-de-dados",
+      "token": null,
+      "notes": "Exige chave gratuita; sem token a fonte é marcada indisponível."
+    },
+    "incluir_microdados": false
   },
   "agents": {
     "planner": {"temperature": 0.4, "max_hypotheses": 3},

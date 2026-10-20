@@ -24,13 +24,22 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.config import Config  # noqa: E402
-from core.experiments import ExperimentRunner, generate_synthetic_dataset  # noqa: E402
+from core.experiments import (  # noqa: E402
+    ExperimentRunner,
+    RealDataUnavailableError,
+    build_agriculture_dataset,
+    build_dengue_outbreak_dataset,
+    build_deforestation_dataset,
+    build_education_dataset,
+    build_real_dataset,
+)
 from core.memory import MemorySystem  # noqa: E402
 from core.orchestrator import Orchestrator  # noqa: E402
 from core.paper import ABNTFormatter  # noqa: E402
@@ -85,18 +94,36 @@ def test_memory_persists_cycle_and_knowledge(tmp_path):
 # --------------------------------------------------------------------------- #
 # Experimento (treina modelos e roda testes estatísticos de verdade)
 # --------------------------------------------------------------------------- #
-def test_synthetic_dataset_is_reproducible():
-    X1, y1, meta1 = generate_synthetic_dataset(seed=42)
-    X2, y2, _ = generate_synthetic_dataset(seed=42)
-    assert (X1 == X2).all() and (y1 == y2).all()
-    assert meta1["seed"] == 42
-    assert meta1["balanceamento"]["positivos"] > 0
+def test_synthetic_generator_was_removed():
+    """O sistema não fabrica dados: o gerador sintético não existe mais."""
+    import core.experiments as experiments
+
+    assert not hasattr(experiments, "generate_synthetic_dataset")
+    assert not hasattr(experiments.runner, "generate_synthetic_dataset")
 
 
-def test_experiment_runner_produces_real_metrics(tmp_path):
+def test_experiment_runner_raises_without_real_source(tmp_path):
+    """Sem fonte pública de observações, o runner falha explicitamente.
+
+    O runner não cai para uma base sintética; ele levanta
+    ``RealDataUnavailableError`` para que o ciclo registre a ausência de dados em
+    vez de publicar números inventados.
+    """
     runner = ExperimentRunner(seed=7, output_dir=tmp_path)
-    result = runner.run("dengue", {"id": "H1", "enunciado": "ML > baseline"})
+    with pytest.raises(RealDataUnavailableError):
+        runner.run("previsao de churn em telecomunicacoes", {"id": "H1", "enunciado": "ML > baseline"})
 
+
+def test_experiment_runner_runs_on_real_dataset(tmp_path):
+    """Com fonte pública real, o runner treina e produz métricas verificáveis.
+
+    Usa o cache versionado de observações reais (``data/dataset_cache``) em modo
+    offline, então o teste é determinístico e não depende de rede.
+    """
+    runner = ExperimentRunner(seed=7, output_dir=tmp_path, cache_dir="data/dataset_cache", offline=True)
+    result = runner.run("Predição de surtos de dengue no Brasil", {"id": "H1", "enunciado": "ML > baseline"})
+
+    assert result.dataset["tipo"] == "dados_reais"
     assert set(result.metrics) == {
         "baseline_estatistico",
         "regressao_logistica",
@@ -322,6 +349,189 @@ def test_crossref_returns_real_articles():
 
 
 @pytest.mark.network
+def test_build_dengue_dataset_uses_real_observations():
+    """O dataset de dengue vem do InfoDengue, com observações reais.
+
+    Verifica a proveniência (não sintético), o formato da matriz e o alvo
+    binário, além do baseline de persistência declarado nos metadados.
+    """
+    dataset = build_dengue_outbreak_dataset(
+        cidades={3304557: "Rio de Janeiro", 3106200: "Belo Horizonte"},
+        anos=(2023,),
+    )
+    if dataset is None:
+        pytest.skip("InfoDengue indisponível neste ambiente")
+
+    assert dataset.meta["tipo"] == "dados_reais"
+    assert "InfoDengue" in dataset.meta["origem"]
+    assert dataset.X.shape[0] == dataset.y.shape[0] >= 50
+    assert dataset.X.shape[1] == len(dataset.meta["variaveis"])
+    assert set(np.unique(dataset.y)).issubset({0, 1})
+    assert dataset.meta["balanceamento"]["positivos"] == int(dataset.y.sum())
+    assert dataset.meta["baseline"]["tipo"] == "persistencia"
+    assert dataset.meta["split"] == "temporal"
+
+
+@pytest.mark.network
+def test_runner_uses_real_dataset_and_temporal_split(tmp_path):
+    """O runner, com tópico de dengue, treina sobre dados observados.
+
+    O corte é temporal (sem futuro no treino) e o baseline é a persistência do
+    nível de alerta — não a regra sintética.
+    """
+    runner = ExperimentRunner(seed=7, output_dir=tmp_path)
+    result = runner.run("Predição de surtos de dengue usando dados climáticos", {"id": "H1"})
+
+    assert result.dataset["tipo"] == "dados_reais"
+    assert result.dataset["split"] == "temporal"
+    assert result.dataset["baseline"]["tipo"] == "persistencia"
+    for name, metrics in result.metrics.items():
+        assert 0.0 <= metrics["f1_score"] <= 1.0, name
+    assert result.best_model in result.metrics
+
+
+def test_real_dataset_selection_by_topic():
+    """O roteamento escolhe a fonte real certa e recusa temas sem fonte pública.
+
+    Usa o cache versionado (offline) para não depender de rede.
+    """
+    cache = "data/dataset_cache"
+    # Temas sem fonte pública implementada: nada é fabricado.
+    assert build_real_dataset("previsao de churn em telecom", cache_dir=cache, offline=True) is None
+    assert build_real_dataset("", cache_dir=cache, offline=True) is None
+    # Temas com fonte real: cada um resolve para a origem correta.
+    dengue = build_real_dataset("dengue e clima no Brasil", cache_dir=cache, offline=True)
+    assert dengue is not None and "InfoDengue" in dengue.meta["origem"]
+    desmat = build_real_dataset("desmatamento na Amazonia", cache_dir=cache, offline=True)
+    assert desmat is not None and "PRODES" in desmat.meta["origem"]
+    agro = build_real_dataset("irrigacao no Cerrado", cache_dir=cache, offline=True)
+    assert agro is not None and "SIDRA" in agro.meta["origem"]
+    edu = build_real_dataset("gamificacao no ensino", cache_dir=cache, offline=True)
+    assert edu is not None and "SIDRA" in edu.meta["origem"]
+
+
+def test_real_datasets_track_provenance():
+    """Todo dataset real carrega procedência explícita nos metadados.
+
+    Exigência do projeto: o manuscrito precisa citar de onde veio cada número.
+    """
+    cache = "data/dataset_cache"
+    for builder, esperado in (
+        (build_dengue_outbreak_dataset, "InfoDengue"),
+        (build_deforestation_dataset, "PRODES"),
+        (build_agriculture_dataset, "SIDRA"),
+        (build_education_dataset, "SIDRA"),
+    ):
+        dataset = builder(cache_dir=cache, offline=True)
+        assert dataset is not None, builder.__name__
+        meta = dataset.meta
+        assert meta["tipo"] == "dados_reais"
+        assert esperado in meta["origem"]
+        assert meta["fonte_url"].startswith("http")
+        assert meta["n_amostras"] == dataset.X.shape[0]
+        assert meta["n_variaveis"] == dataset.X.shape[1]
+        assert meta["split"] == "temporal"
+
+
+def test_detector_pega_numero_sem_lastro_nos_dados():
+    """Um dígito trocado numa afirmação sobre dados reais é detectado.
+
+    Caso real: o manuscrito afirmou intervalo de semanas "200201 a 202351",
+    quando o InfoDengue devolveu 202201. O validador por LLM não percebeu.
+    """
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    resultado = {
+        "dataset": {"intervalo_semanas": {"inicio": 202201, "fim": 202351}, "n_amostras": 817},
+        "metrics": {"floresta_aleatoria": {"f1_score": 0.8989}},
+    }
+    fontes = collect_numbers(resultado)
+
+    manuscrito = "As semanas foram de 200201 a 202351, com N = 817 amostras e F1 = 0,8989."
+    suspeitos = find_unsupported_numbers(manuscrito, fontes)
+    assert 200201.0 in suspeitos
+    assert 202351.0 not in suspeitos
+    assert 817.0 not in suspeitos
+    assert 0.8989 not in suspeitos
+
+
+def test_detector_ignora_numeracao_estrutural_e_valores_arredondados():
+    """Numeração de seção e arredondamento legítimo não geram falso positivo."""
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    fontes = collect_numbers({"metricas": {"f1_score": 0.89891, "alpha": 0.05}})
+    # "2." e "3." são numeração de seção; "0,899" é arredondamento de 0,89891.
+    manuscrito = "2. METODOLOGIA\n3. RESULTADOS\nF1 = 0,899 e alpha = 0,05."
+    assert find_unsupported_numbers(manuscrito, fontes) == []
+
+
+def test_detector_aceita_limite_por_truncamento_mas_pega_limite_falso():
+    """Um limite conservador (p > 0,20 para p = 0,2065) não é número sem lastro.
+
+    Caso real: o manuscrito escreveu "p > 0,20" e "p > 0,24" a partir de
+    p = 0,2065 e p = 0,2490. Acusar isso era falso positivo. Já um limite que
+    nenhum dado sustenta ("p > 0,30") continua sendo apontado.
+    """
+    from core.review.numeros import find_unsupported_numbers
+
+    fontes = [0.206553, 0.249020, 0.655645]
+    legitimo = "Floresta com p > 0,20 e Gradient Boosting com p > 0,24."
+    assert find_unsupported_numbers(legitimo, fontes) == []
+
+    falso = "Todos os modelos com p > 0,30."
+    assert 0.3 in find_unsupported_numbers(falso, fontes)
+
+
+def test_detector_ignora_numeracao_de_subsecao_e_versoes():
+    """Títulos numerados e versões de software não são afirmações sobre dados.
+
+    O LLM escreve "### 3.1. Amostragem" e "Python 3.13.15"; sem podar isso, o
+    conferidor acusava 3.1-3.4 e 3.13.15 como números sem lastro.
+    """
+    from core.review.numeros import collect_numbers, find_unsupported_numbers
+
+    fontes = collect_numbers({"n_amostras": 817})
+    manuscrito = (
+        "## 3 RESULTADOS E DISCUSSÃO\n"
+        "### 3.1. Desempenho dos Modelos\n"
+        "### 3.2. Análise Estatística\n"
+        "### 3.3. Comparação com a Literatura\n"
+        "### 3.4. Limitações\n"
+        "Executado em Python 3.13.15, com N = 817 amostras. Ver Seção 3.2 e Tabela 2.1.\n"
+    )
+    assert find_unsupported_numbers(manuscrito, fontes) == []
+
+
+def test_detector_extrai_numeros_de_estrutura_aninhada():
+    from core.review.numeros import collect_numbers
+
+    numeros = collect_numbers({"a": [1, "2.5", {"b": "x=3,7"}]})
+    assert {1.0, 2.5, 3.7}.issubset(numeros)
+
+
+def test_temporal_split_keeps_order():
+    """O corte temporal preserva a ordem cronológica das amostras."""
+    X = np.arange(20).reshape(10, 2).astype(float)
+    y = np.arange(10)
+    runner = ExperimentRunner(test_size=0.3)
+    X_train, X_test, y_train, y_test = runner._split_temporal(X, y)
+    assert len(X_train) == 7 and len(X_test) == 3
+    assert X_train[-1, 0] < X_test[0, 0]
+    assert list(y_train) == [0, 1, 2, 3, 4, 5, 6]
+    assert list(y_test) == [7, 8, 9]
+
+
+def test_persistence_baseline_flags_current_alert_level():
+    """O baseline de persistência usa o nível atual da semana t."""
+    meta = {"baseline": {"tipo": "persistencia", "coluna": "nivel", "limiar": 3}, "variaveis": ["temp", "nivel"]}
+    X_test = np.array([[25.0, 1.0], [26.0, 3.0], [27.0, 4.0]])
+    runner = ExperimentRunner()
+    y_pred, score = runner._baseline_prediction(X_test, meta)
+    assert list(y_pred) == [0, 1, 1]
+    assert list(score) == [1.0, 3.0, 4.0]
+
+
+@pytest.mark.network
 def test_aggregator_collects_multiple_sources():
     aggregator = BrazilianDataAggregator.from_config(Config.load().as_dict())
     gathered = aggregator.gather("dengue e clima no Brasil")
@@ -465,6 +675,330 @@ def test_latex_formatter_escapes_and_structures():
     assert "\\bibitem" in tex
     assert "50\\%" in tex and "\\_mais" in tex and "\\#hashtag" in tex
     assert "\\section{Introdução}" in tex
+
+
+def test_latex_escapes_unicode_from_real_llms():
+    """LLMs reais emitem espaços/hífens tipográficos, gregas e subscritos.
+
+    Esses caracteres não são mapeados por inputenc+fontenc e abortavam o
+    pdflatex, fazendo o ciclo terminar sem paper_latex.pdf.
+    """
+    from core.paper import LaTeXFormatter
+
+    escapar = LaTeXFormatter._escape
+    # Espaços e hífens tipográficos viram equivalentes ASCII.
+    assert escapar("seed\u202f=\u202f42") == "seed = 42"
+    assert escapar("dados\xa0abertos") == "dados abertos"
+    assert escapar("co\u2011ocorrência") == "co-ocorrência"
+    assert escapar("aspas \u201cx\u201d e\u2026") == "aspas ``x'' e\\ldots{}"
+    # Gregas e sub/sobrescritos viram comandos matemáticos.
+    assert escapar("\u03b1") == "$\\alpha$"
+    assert escapar("\u0394SOC") == "$\\Delta$SOC"
+    assert escapar("N\u2082O e CO\u2082") == "N$_2$O e CO$_2$"
+    assert escapar("km\u00b2") == "km$^2$"
+    # Símbolos fora do alcance do LaTeX são descartados, sem deixar lixo.
+    assert escapar("emoji \U0001f680 fim") == "emoji  fim"
+    # Acentuação normal é preservada.
+    assert escapar("acentuação ç ã é") == "acentuação ç ã é"
+
+
+def test_llm_cache_key_depends_on_provider():
+    """A chave de cache precisa incluir o provider.
+
+    Sem isso, uma resposta do mock já em cache era devolvida numa execução com
+    LLM real, mascarando o provider escolhido pelo usuário.
+    """
+    from llm_providers import LLMClient, MockProvider, OpenAICompatibleProvider
+
+    mock = LLMClient(providers=[MockProvider()])
+    real = LLMClient(providers=[OpenAICompatibleProvider(model="openai/gpt-oss-120b", api_key="x")])
+    assert mock._signature() != real._signature()
+    assert "mock" in mock._signature()
+    assert "openai/gpt-oss-120b" in real._signature()
+
+
+def test_llm_backoff_honors_rate_limit_hint():
+    """Em HTTP 429, espera o tempo sugerido pela API em vez de um backoff curto.
+
+    Ignorar o "try again in Ns" esgotava as tentativas e derrubava o pipeline
+    para o provider mock sem aviso.
+    """
+    from llm_providers import LLMClient
+
+    erro = Exception('HTTP 429: {"error":{"message":"Rate limit reached ... try again in 27.66s."}}')
+    espera = LLMClient._backoff(erro, attempt=0)
+    assert 28.0 <= espera <= 29.0, espera
+    # Sem a dica, usa um backoff progressivo, mas limitado.
+    assert LLMClient._backoff(Exception("HTTP 500"), attempt=0) == 0.5
+    assert LLMClient._backoff(Exception("HTTP 500"), attempt=5) <= 8.0
+
+
+def test_free_stack_providers_use_isolated_keys(monkeypatch):
+    """Cada provider da pilha lê a sua própria variável de chave.
+
+    Sem isso, uma unica OPENAI_API_KEY deixaria todos os providers "disponiveis"
+    e o cliente tentaria provedores sem chave, gastando tentativas em 401.
+    """
+    import llm_providers
+    from core.config import Config
+
+    monkeypatch.setenv("GROQ_API_KEY", "chave-groq")
+    monkeypatch.setenv("OPENAI_API_KEY", "chave-generica")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    config = Config.load("config.free-stack.json")
+    client = llm_providers.build_llm_client(config.data, use_cache=False)
+    disponiveis = {p.name for p in client.providers if p.available()}
+    assert disponiveis == {"groq", "mock"}, disponiveis
+    groq = next(p for p in client.providers if p.name == "groq")
+    assert groq.api_key == "chave-groq"
+    assert groq.base_url == "https://api.groq.com/openai/v1"
+
+
+def test_config_merge_preserves_untouched_sections(tmp_path):
+    """Um --config parcial nao pode desativar integracoes nem caminhos.
+
+    Antes, carregar um arquivo com so a secao ``llm`` substituia a
+    configuracao inteira e as APIs brasileiras ficavam silenciosamente vazias.
+    """
+    import json as _json
+    from core.config import Config
+
+    parcial = tmp_path / "parcial.json"
+    parcial.write_text(_json.dumps({"llm": {"temperature": 0.9}}), encoding="utf-8")
+    config = Config.load(parcial)
+    assert config.data["llm"]["temperature"] == 0.9
+    assert "integrations" in config.data and config.data["integrations"]
+    assert "paths" in config.data
+    assert config.data["integrations"]["crossref"]["base_url"].startswith("https://")
+
+
+def test_long_rate_limit_skips_provider_instead_of_waiting(monkeypatch):
+    """Um 429 que pede espera longa nao deve prender o ciclo.
+
+    A Groq, ao esgotar o teto diario, responde "try again in 26m". Esperar esse
+    tempo (ou repetir o provider com backoff curto) travava o ciclo por horas.
+    O cliente deve desistir deste provider e passar ao proximo da cadeia.
+    """
+    import llm_providers
+    from llm_providers import LLMClient
+
+    esperas: list[float] = []
+
+    class ProviderQuebrado:
+        name = "quebrado"
+        model = "x"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, prompt, system=None, **kwargs):
+            raise Exception("HTTP 429: try again in 26m16s")
+
+    class ProviderBom:
+        name = "bom"
+        model = "y"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, prompt, system=None, **kwargs):
+            return "resposta boa"
+
+    monkeypatch.setattr(llm_providers.time, "sleep", lambda s: esperas.append(s))
+    client = LLMClient(providers=[ProviderQuebrado(), ProviderBom()], retries=3)
+    resposta = client.complete("pergunta")
+    assert resposta.text == "resposta boa"
+    assert resposta.provider == "bom"
+    # Nenhuma espera longa foi executada: pulou direto para o proximo provider.
+    assert esperas == [], esperas
+
+
+def test_stats_report_configured_providers_and_failures(monkeypatch):
+    """O relatorio precisa distinguir "nao configurado" de "configurado e falhou".
+
+    Com --config, uma cadeia em que todos os providers reais falharam aparecia
+    apenas como mock, e o aviso dizia "nenhum LLM real foi configurado" — o que
+    escondia justamente a informacao util: quem falhou e quantas vezes.
+    """
+    import llm_providers
+    from llm_providers import LLMClient
+
+    class P:
+        name = "groq"
+        model = "m"
+
+        def available(self) -> bool:
+            return True
+
+        def complete(self, *a, **k):
+            raise Exception("HTTP 429: try again in 9m34s")
+
+    monkeypatch.setattr(llm_providers.time, "sleep", lambda s: None)
+    client = LLMClient(providers=[P()], retries=1)
+    try:
+        client.complete("x")
+    except RuntimeError:
+        pass
+    stats = client.stats()
+    assert stats["providers_configurados"] == ["groq"]
+    # Uma única falha: a espera pedida (9m34s) excede o teto, então o cliente
+    # pula o provider na primeira tentativa em vez de insistir.
+    assert stats["falhas_por_provider"]["groq"] == 1
+
+
+def test_render_markdown_nao_duplica_titulos_de_secao():
+    """O formatador nao pode repetir o titulo que o LLM ja escreveu.
+
+    O redator devolve "## 1. INTRODUCAO\n\ntexto" e o formatador adiciona
+    "## 1 INTRODUCAO". Sem deduplicar, toda secao de todo paper saia com dois
+    titulos seguidos.
+    """
+    from core.paper.abnt import ABNTFormatter
+
+    sections = {
+        "resumo": "**RESUMO**\n\nEste estudo investigou o deficit.",
+        "abstract": "**ABSTRACT**\n\nThis study investigated.",
+        "introducao": "## 1. INTRODUCAO\n\nO agronegocio brasileiro cresce.",
+        "metodologia": "## METODOLOGIA\n\nUsou-se um dataset sintetico.",
+        "resultados": "## 3. RESULTADOS\n\nA acuracia foi de 0,85.",
+        "conclusao": "## 4. CONCLUSAO\n\nConclui-se que ha relacao.",
+    }
+    md = ABNTFormatter().render_markdown(
+        topic="Armazenagem de graos",
+        sections=sections,
+        references=["[1] REFERENCIA. Titulo. 2024."],
+        metadata={"titulo": "Armazenagem de graos", "data": "2026-01-01"},
+    )
+    for titulo in ("## 1 INTRODUÇÃO", "## 2 METODOLOGIA", "## 3 RESULTADOS E DISCUSSÃO", "## 4 CONCLUSÃO"):
+        assert md.count(titulo) == 1, (titulo, md.count(titulo))
+    assert "## 1. INTRODUÇÃO" not in md
+    assert md.count("## RESUMO") == 1
+    # O corpo nao pode ser engolido junto com o titulo.
+    assert "O agronegocio brasileiro cresce." in md
+    assert "A acuracia foi de 0,85." in md
+
+
+def test_strip_duplicate_heading_preserva_texto_do_corpo():
+    """Nao confundir titulo com uma frase que comeca com a mesma palavra."""
+    from core.paper.headings import strip_duplicate_heading as s
+
+    # Sem marcador de titulo: e texto, nao titulo.
+    assert s("Introducao e o tema central", "Introducao") == "Introducao e o tema central"
+    assert s("texto sem titulo", "1 INTRODUCAO") == "texto sem titulo"
+    # Com marcador: e titulo, remove.
+    assert s("## 1. INTRODUCAO\n\ncorpo", "1 INTRODUCAO") == "corpo"
+    assert s("**RESUMO**\n\ncorpo", "RESUMO") == "corpo"
+    # O LLM abrevia o titulo esperado.
+    assert s("## 3. RESULTADOS\n\ncorpo", "3 RESULTADOS E DISCUSSAO") == "corpo"
+    # Titulo de outra secao nao e removido.
+    assert s("## 2. MATERIAIS E METODOS\n\ncorpo", "2 METODOLOGIA").startswith("## 2.")
+
+
+def test_remove_declaracao_de_ia_repetida_nas_secoes():
+    """O redator fecha cada secao com uma declaracao de IA; so uma deve sobrar.
+
+    O formatador emite a declaracao canonica no fim do documento. As copias que
+    o LLM escreve dentro das secoes faziam o mesmo paragrafo aparecer quatro
+    vezes no paper.
+    """
+    from core.paper.abnt import ABNTFormatter
+
+    corpo = (
+        "## METODOLOGIA\n\nO metodo foi quantitativo.\n\n---\n\n"
+        "### Declara\u00e7\u00e3o de Uso de Intelig\u00eancia Artificial\n"
+        "Declara-se que ferramentas de IA foram utilizadas."
+    )
+    md = ABNTFormatter().render_markdown(
+        topic="Teste",
+        sections={"metodologia": corpo},
+        references=["[1] REF. Titulo. 2024."],
+        metadata={"titulo": "Teste", "data": "2026-01-01"},
+    )
+    assert "O metodo foi quantitativo." in md
+    # A declaracao interna saiu; a canonica do formatador permanece.
+    assert md.count("Declara\u00e7\u00e3o de Uso de Intelig\u00eancia Artificial") == 0
+    assert "Declara-se que ferramentas de IA foram utilizadas." not in md
+    assert md.count("## DECLARA\u00c7\u00c3O DE USO DE IA") == 1
+
+    # Variante "Declaracao sobre o Uso de Inteligencia Artificial" tambem sai.
+    corpo2 = (
+        "## METODOLOGIA\n\nO metodo.\n\n"
+        "### Declara\u00e7\u00e3o sobre o Uso de Intelig\u00eancia Artificial\n"
+        "Declara-se que ferramentas de IA."
+    )
+    md2 = ABNTFormatter().render_markdown(
+        topic="Teste",
+        sections={"metodologia": corpo2},
+        references=["[1] REF. 2024."],
+        metadata={"titulo": "Teste", "data": "2026-01-01"},
+    )
+    assert "Declara\u00e7\u00e3o sobre o Uso" not in md2
+    assert "O metodo." in md2
+
+
+def test_renumera_subsecoes_para_o_numero_da_secao():
+    """O LLM numera subsecoes por conta propria e erra o prefixo.
+
+    Aparecia "### 3.1" dentro da secao 2 (METODOLOGIA) e "### 4.1" dentro da
+    secao 3 (RESULTADOS). O prefixo deve seguir a secao que contem a subsecao.
+    """
+    from core.paper.headings import renumber_subsections
+
+    corpo = "### 3.1. Amostragem\n\ntexto\n\n### 3.2. Modelos\n\nmais"
+    out = renumber_subsections(corpo, 2)
+    assert "### 2.1. Amostragem" in out
+    assert "### 2.2. Modelos" in out
+    assert "### 3.1" not in out
+    # Variante sem ponto final depois do numero.
+    assert "### 3.1. Desempenho" in renumber_subsections("### 4.1 Desempenho", 3)
+    # Subsecao sem numero nao e tocada.
+    assert renumber_subsections("### Sem numero", 2) == "### Sem numero"
+
+
+def test_latex_compile_produces_distinct_pdf(tmp_path):
+    """Com pdflatex presente, o PDF do LaTeX é separado e não sobrescreve o ABNT."""
+    from core.paper import LaTeXFormatter
+
+    formatter = LaTeXFormatter()
+    if not formatter.available():
+        pytest.skip("pdflatex indisponível neste ambiente")
+
+    abnt_pdf = tmp_path / "paper.pdf"
+    abnt_pdf.write_bytes(b"%PDF-1.4 abnt-marker")
+
+    result = formatter.write(
+        topic="Predição de surtos de dengue no Brasil",
+        sections={
+            "resumo": "Resumo com acentuação: predição, irrigação, saúde.",
+            "introducao": "Introdução com 50% de dados_e_mais.",
+            "metodologia": "Metodologia.",
+            "resultados": "Resultados.",
+            "conclusao": "Conclusão.",
+        },
+        references=[{"autores": ["Silva, J."], "titulo": "Artigo", "ano": 2024, "periodico": "Rev", "doi": "10.1/x"}],
+        metadata={"titulo": "Teste", "autores": ["IA"], "data": "2024-01-01", "palavras_chave": ["a"], "keywords": ["b"]},
+        output_dir=tmp_path,
+    )
+    assert result["tex"] and Path(result["tex"]).exists()
+    assert result["pdf"] and Path(result["pdf"]).name == "paper_latex.pdf"
+    assert Path(result["pdf"]).read_bytes().startswith(b"%PDF")
+    assert abnt_pdf.read_bytes() == b"%PDF-1.4 abnt-marker"
+
+
+def test_latex_compile_never_raises_on_failure(tmp_path):
+    """LaTeX inválido não deve propagar exceção; o ciclo segue com o .tex."""
+    from core.paper import LaTeXFormatter
+
+    formatter = LaTeXFormatter()
+    if not formatter.available():
+        pytest.skip("pdflatex indisponível neste ambiente")
+
+    broken = tmp_path / "quebrado.tex"
+    broken.write_text("\\documentclass{article}\\begin{document}\\naoexiste\\end{document}", encoding="utf-8")
+    assert formatter.compile_pdf(broken, tmp_path) is None
 
 
 def test_doctor_reports_environment(tmp_path):
