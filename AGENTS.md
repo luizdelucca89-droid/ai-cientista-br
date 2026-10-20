@@ -239,3 +239,42 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
   eles e exporte chaves falsas. Confira `metricas_llm.por_provider` no
   `ciclo_completo.json` — `mock` não deve aparecer.
 
+
+
+## Pipeline de pesquisa real: dengue + NDVI (dados 100% reais)
+
+- **Zero dados sintéticos é regra dura.** integrations/satellite_ndvi.py e
+  core/experiments/dengue_satellite.py falham com exceção explícita
+  (SateliteIndisponivelError, RealDataUnavailableError) quando a fonte real
+  não responde; nada é fabricado no lugar.
+- **Armadilha do gzip:** a API de malhas do IBGE
+  (servicodados.ibge.gov.br/api/v3/malhas) responde Content-Encoding: gzip, e
+  urllib não descomprime sozinho. Sem gzip.decompress, o json.loads quebra com
+  'Expecting value'. O _get do módulo de satélite já trata isso.
+- **NDVI é índice de paleta, não valor físico.** O PNG do NASA GIBS é mode=P
+  (paleta). O valor físico sai do colormap oficial
+  (colormaps/v1.0/MODIS_L3_NDVI.xml, 142 entradas RGB->NDVI). Usar o índice de
+  paleta como se fosse NDVI dá número sem significado.
+- **Agregação espacial explícita:** o polígono real do IBGE é rasterizado sobre
+  o tile (por linha de latitude, via intersection com LineString) e só os
+  pixels dentro da fronteira entram na média. Média do tile inteiro mistura
+  município com o entorno.
+- **Agregação temporal sem vazamento:** o composto MODIS de 16 dias é rotulado
+  pelo primeiro dia do período. Usar o rótulo mais próximo da semana incluiria
+  dias futuros; recuamos DEFASAGEM_COMPOSTO_DIAS=16 para o composto ter
+  terminado antes da semana-alvo.
+- **Resultado real é nulo, e isso fica.** ΔF1 do satélite isolado (B vs C, mesmo
+  algoritmo) = +0,0049, abaixo do limiar pré-registrado de 0,02. O ganho de B
+  sobre A (+0,0177) vem da troca LogReg->GB, não do satélite. Na sensibilidade
+  sem nivel/nivel_inc, o satélite atrapalha (ΔF1 = -0,0483). Não ajustar nada
+  para 'melhorar' a história.
+- **Portão de fidelidade numérica:** core/review/numeros.py acusa número sem
+  lastro. Ao rodá-lo sobre o .tex, escope só o corpo (begin document até begin
+  thebibliography) e remova cite, url, includegraphics etc. — senão fragmentos
+  de DOI e anos de referência aparecem como 'sem lastro'.
+- **LaTeX sem root:** tectonic (binário único, baixa os pacotes sob demanda)
+  compila o PDF do paper. pdflatex não está instalado e o apt-get não tem
+  permissão.
+- **Reprodutibilidade:** python experimentos/dengue_ndvi.py --offline reproduz
+  os mesmos números do cache em segundos. Os números do paper são injetados de
+  resultados/resultado_consolidado.json, nunca digitados.
