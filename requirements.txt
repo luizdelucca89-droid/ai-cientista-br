@@ -18,3 +18,18 @@ pytest>=7.4.0
 streamlit>=1.28.0
 plotly>=5.18.0
 python-dotenv>=1.0.0
+
+# Multimodal geoespacial — features de imagens de satélite reais (INPE/PRODES).
+# scikit-image: textura (Haralick) e filtros; roda no pipeline principal.
+scikit-image>=0.22
+Pillow>=10.0.0
+# rasterio: leitura de GeoTIFF do WMS do INPE. A série 1.5 exige Python >= 3.12;
+# fixamos <1.5 no Python 3.11, que ainda recebe rodas binárias na série 1.4.
+rasterio>=1.4,<1.5; python_version < "3.12"
+rasterio>=1.4; python_version >= "3.12"
+
+# Extras opcionais (NÃO instalados por padrão): visão computacional e geoai.
+# Instale manualmente quando quiser embeddings de CNN ou o pipeline geoai:
+#   pip install "torch>=2.2" "torchvision>=0.17" "geoai-py>=0.43"
+# O código detecta a ausência e usa apenas as features interpretáveis
+# (textura + cor/vegetação), que não dependem de torch.

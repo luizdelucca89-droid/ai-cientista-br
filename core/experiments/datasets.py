@@ -57,6 +57,17 @@ GATILHOS_DENGUE = ("dengue", "arbovirose", "aedes", "infodengue")
 GATILHOS_DESMATAMENTO = ("desmatamento", "amazônia", "amazonia", "prodes", "floresta", "cerrado", "bioma")
 GATILHOS_AGRICULTURA = ("irrigação", "irrigacao", "agricultura", "agro", "soja", "safra", "plantio", "colheita")
 GATILHOS_EDUCACAO = ("educação", "educacao", "escola", "aprendizado", "ensino", "gamificação", "gamificacao", "aluno")
+# Temas que pedem explicitamente a modalidade imagem (satélite real do INPE).
+GATILHOS_MULTIMODAL = (
+    "multimodal",
+    "satélite",
+    "satelite",
+    "imagem de satélite",
+    "imagens de satélite",
+    "sensoriamento remoto",
+    "landsat",
+    "sentinel",
+)
 
 # Códigos SIDRA reais usados pelos construtores.
 SIDRA_PAM_SOJA = 2713
@@ -499,6 +510,15 @@ def build_real_dataset(topic: str, cache_dir: Any = None, offline: bool = False)
     Com ``offline=True``, reproduz as observações reais gravadas em ``cache_dir``.
     """
     texto = (topic or "").lower()
+    # Multimodal antes dos demais: "desmatamento com imagens de satélite" deve
+    # usar o cruzamento tabular+imagem, não o painel tabular isolado.
+    if any(g in texto for g in GATILHOS_MULTIMODAL):
+        from integrations.multimodal import build_multimodal_dataset
+
+        multimodal = build_multimodal_dataset(cache_dir=cache_dir, offline=offline)
+        if multimodal is not None:
+            return multimodal
+        logger.warning("Tema multimodal, mas sem imagens reais disponíveis; usando painel tabular.")
     if any(g in texto for g in GATILHOS_DENGUE):
         return build_dengue_outbreak_dataset(cache_dir=cache_dir, offline=offline)
     # Agricultura antes de desmatamento: "irrigação no Cerrado" tem gatilhos de

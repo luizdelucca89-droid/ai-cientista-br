@@ -84,6 +84,8 @@ class Orchestrator:
                 allow_code_execution=bool(self.config.get("experiments", "allow_code_execution", default=True)),
                 cache_dir=str(self.output_dir / "dataset_cache"),
                 offline=bool(self.config.get("integrations", "offline", default=False)),
+                llm=self.llm,
+                max_debug_retries=int(self.config.get("experiments", "max_debug_retries", default=3)),
             )
 
         agents_cfg = self.config.get("agents", default={}) or {}

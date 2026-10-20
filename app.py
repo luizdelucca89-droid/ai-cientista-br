@@ -4,8 +4,9 @@ Rodar::
 
     streamlit run app.py
 
-A interface expõe três abas: iniciar uma pesquisa, consultar o histórico de
-ciclos gravados na memória SQLite e ajustar configurações locais (``.env``).
+A interface expõe quatro abas: iniciar uma pesquisa, consultar o histórico de
+ciclos gravados na memória SQLite, revisar/rebuttar um ciclo existente e ajustar
+configurações locais (``.env``).
 
 O experimento continua sendo executado pelo mesmo ``Orchestrator`` da CLI —
 a UI apenas dispara o ciclo e apresenta os artefatos. Nenhum dado é gerado
@@ -26,6 +27,7 @@ from dotenv import load_dotenv
 from core.config import Config
 from core.memory import MemorySystem
 from core.orchestrator import Orchestrator
+from core.rebuttal_engine import RebuttalEngine
 from integrations.publishing import IntegrityError, generate_submission_package
 
 ROOT = Path(__file__).resolve().parent
@@ -273,6 +275,97 @@ def _diretorio_do_ciclo(config: Config, cycle_id: int) -> Path | None:
     return None
 
 
+def _aba_rebuttal(config: Config) -> None:
+    st.subheader("🔄 Revisão e Rebuttal")
+    st.caption(
+        "Cole os comentários de um revisor humano. O sistema converte os comentários em "
+        "ações, reexecuta o experimento quando pedido e atualiza o manuscrito."
+    )
+
+    try:
+        memory = MemorySystem(config.output_dir / "memory.sqlite3")
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Não foi possível abrir a memória: {exc}")
+        return
+
+    ciclos = memory.list_cycles(limit=50)
+    memory.close()
+    concluidos = [c for c in ciclos if c.get("status") == "concluido"]
+    if not concluidos:
+        st.info("Nenhum ciclo concluído no histórico. Rode uma pesquisa primeiro.")
+        return
+
+    rotulos = {f"#{c['id']} — {c['topic'][:70]}": c["id"] for c in concluidos}
+    escolha = st.selectbox("Ciclo a revisar", list(rotulos))
+    cycle_id = rotulos[escolha]
+
+    comentarios = st.text_area(
+        "Comentários do revisor",
+        height=200,
+        placeholder=(
+            "Ex.: O manuscrito deve re-executar o experimento reportando AUC além de F1. "
+            "Reescreva a seção de resultados com mais clareza metodológica."
+        ),
+    )
+
+    if st.button("🔄 Gerar Resposta e Atualizar Paper", type="primary"):
+        if not comentarios.strip():
+            st.warning("Cole os comentários do revisor antes de gerar a resposta.")
+            return
+        with st.spinner("Processando rebuttal: parseando ações, reexecutando e reescrevendo..."):
+            try:
+                llm = _construir_llm(config)
+                engine = RebuttalEngine(llm=llm, output_dir=config.output_dir)
+                relatorio = engine.process_rebuttal(cycle_id, comentarios)
+            except FileNotFoundError as exc:
+                st.error(str(exc))
+                return
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Falha no rebuttal: {exc}")
+                return
+        st.session_state["rebuttal"] = relatorio
+
+    relatorio = st.session_state.get("rebuttal")
+    if not relatorio:
+        return
+
+    st.success(f"Rebuttal do ciclo #{relatorio['cycle_id']} concluído.")
+    acoes = relatorio.get("acoes", [])
+    st.markdown(f"**Ações identificadas:** {len(acoes)}")
+    for acao in acoes:
+        st.markdown(f"- `{acao['tipo']}` — {acao['descricao']}")
+
+    comparacao = relatorio.get("comparacao_resultados") or {}
+    if comparacao.get("antes") or comparacao.get("depois"):
+        st.markdown("**Comparação de resultados (antes/depois)**")
+        st.json(comparacao)
+
+    caminho = Path(relatorio["resposta_md"])
+    if caminho.exists():
+        st.markdown("**Resposta aos revisores**")
+        st.markdown(caminho.read_text(encoding="utf-8"))
+        st.download_button(
+            "⬇️ Baixar resposta_revisores.md",
+            caminho.read_bytes(),
+            file_name="resposta_revisores.md",
+            use_container_width=True,
+        )
+
+    st.markdown("**Manuscrito atualizado**")
+    run_dir = Path(relatorio["run_dir"])
+    for nome, rotulo in (("paper.md", "⬇️ paper.md"), ("paper.tex", "⬇️ paper.tex")):
+        arquivo = run_dir / nome
+        if arquivo.exists():
+            st.download_button(rotulo, arquivo.read_bytes(), file_name=nome, use_container_width=True)
+
+
+def _construir_llm(config: Config):
+    """Constrói o cliente LLM a partir da configuração, como a CLI faz."""
+    from llm_providers import build_llm_client
+
+    return build_llm_client(config.as_dict())
+
+
 def _aba_configuracoes() -> None:
     st.subheader("⚙️ Configurações")
     st.caption("As chaves são gravadas em `.env` (fora do controle de versão) e no ambiente da sessão.")
@@ -305,12 +398,16 @@ def main() -> None:
     config = _config()
     st.session_state.setdefault("pacote", None)
 
-    aba1, aba2, aba3 = st.tabs(["🔬 Nova pesquisa", "📚 Histórico", "⚙️ Configurações"])
+    aba1, aba2, aba3, aba4 = st.tabs(
+        ["🔬 Nova pesquisa", "📚 Histórico", "🔄 Revisão e Rebuttal", "⚙️ Configurações"]
+    )
     with aba1:
         _aba_nova_pesquisa(config)
     with aba2:
         _aba_historico(config)
     with aba3:
+        _aba_rebuttal(config)
+    with aba4:
         _aba_configuracoes()
 
 

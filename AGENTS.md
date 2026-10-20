@@ -77,8 +77,29 @@ A ordem importa: agricultura vem antes de desmatamento porque "irrigação no Ce
 ## Técnicas portadas do AI Scientist (Sakana AI)
 
 Ver a seção "Comparação com o AI Scientist" no README. Ao mexer em JSON de
-agentes, painel de revisão, OpenAlex, tokens, doctor, lote ou LaTeX, mantenha o
-comportamento documentado lá.
+agentes, painel de revisão, OpenAlex, tokens, doctor, lote, LaTeX, auto-debug,
+rebuttal ou multimodal, mantenha o comportamento documentado lá.
+
+- `core/experiments/auto_debugger.py` — loop de correção (padrão Sakana v3):
+  captura o `traceback`, pede ao LLM **apenas** o bloco de código corrigido e
+  reexecuta até `max_retries=3`. Esgotado o limite, o runner grava
+  `status_experimento: "falha_apos_debug"` com `metrics={}` e o ciclo segue.
+  Reportar a falha metodológica é o comportamento correto; **nunca** preencher
+  métricas fabricadas para "salvar" o experimento.
+- `core/rebuttal_engine.py` — DRPG (Decompose/Retrieve/Plan/Generate).
+  `parse_reviewer_comments()` classifica cada comentário em `TIPOS_ACAO`
+  (`re-run`/`rewrite`/`clarify`); `RebuttalEngine` recupera os artefatos do
+  `ciclo_completo.json`, reexecuta ou reescreve e grava `resposta_revisores.md`
+  com o contrato "Reviewer Comment → Our Response → Changes Made".
+- `integrations/multimodal.py` — features de **imagens de satélite reais** do
+  mosaico do PRODES (WMS TerraBrasilis/INPE). A camada
+  `prodes-legal-amz:temporal_mosaic_legal_amazon` **rejeita `CQL_FILTER`**; o
+  ano é selecionado via `TIME=YYYY-01-01T00:00:00Z`. Sem imagem real e sem
+  cache, levanta `ImagemSateliteIndisponivel` — nunca sintetiza pixels.
+- `integrations/multimodal_geo.py` — mesma extração, mas lendo o WMS como
+  **GeoTIFF** com `rasterio`/`geoai` (metadados de raster: CRS, transform,
+  resolução). `geoai-py`/`torch` são extras opcionais; sem eles o módulo
+  degrada e o pipeline usa a via PNG.
 
 ## Armadilhas conhecidas
 
@@ -96,6 +117,15 @@ comportamento documentado lá.
 - `outputs/`, `*.sqlite3` e `*.pdf` estão no `.gitignore` — artefatos de execução
   não vão para o controle de versão.
 - `pypdf` é apenas ferramenta de verificação, não é dependência do projeto.
+- **Import circular** entre `integrations` e `core.experiments.datasets`:
+  `datasets.py` importa `integrations.brazilian_apis` no topo, e o
+  `integrations/__init__.py` reexporta o multimodal. Por isso `multimodal.py` /
+  `multimodal_geo.py` **não podem** importar `core.experiments.datasets` no topo;
+  use os atalhos tardios `_fetch_cached` / `_proveniencia_local` e importe
+  `RealDataset` dentro das funções.
+- **rasterio no Python 3.11**: a série 1.5 exige Python >= 3.12. O
+  `requirements.txt` fixa `rasterio>=1.4,<1.5` no 3.11 (ainda há rodas `cp311` na
+  1.4.3/1.4.4). `geoai-py` exige Python >= 3.12 e fica como extra opcional.
 
 ## Escopo dos dados: experimento real quando há fonte pública
 
@@ -120,10 +150,10 @@ pegou um erro real — um `200201` onde o dado dizia `202201`.
 
 ## Interface gráfica e publicação
 
-- `app.py` — UI Streamlit (abas Nova pesquisa / Histórico / Configurações).
-  Dispara o mesmo `Orchestrator`; não contorna a regra de zero dados sintéticos.
-  Rodar com `streamlit run app.py`. Testada no CI apenas com `py_compile`
-  (a UI precisa de servidor), por isso a checagem é de sintaxe.
+- `app.py` — UI Streamlit (abas Nova pesquisa / Histórico / Revisão e Rebuttal /
+  Configurações). Dispara o mesmo `Orchestrator`; não contorna a regra de zero
+  dados sintéticos. Rodar com `streamlit run app.py`. Testada no CI apenas com
+  `py_compile` (a UI precisa de servidor), por isso a checagem é de sintaxe.
 - `integrations/publishing.py` — `generate_submission_package(cycle_dir)` monta
   o ZIP de submissão (paper.pdf, paper.tex, bibliografia.bib,
   codigo_experimento.py, metadata_dados.json, INSTRUCOES_SUBMISSAO.md).

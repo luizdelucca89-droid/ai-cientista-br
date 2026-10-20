@@ -24,10 +24,47 @@ from typing import Any, Callable
 
 import numpy as np
 
+from core.experiments.auto_debugger import executar_com_auto_debug
 from core.experiments.datasets import RealDataUnavailableError, build_real_dataset
 from core.utils import ensure_dir, setup_logger, write_json
 
 logger = setup_logger(__name__)
+
+
+# Código do experimento executado em sandbox com auto-debug. É um script de
+# verdade (não uma string de fachada): calcula as métricas que o runner usa.
+CODIGO_EXPERIMENTO = '''
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.preprocessing import StandardScaler
+
+corte = int(round(len(X) * (1 - test_size)))
+corte = max(1, min(corte, len(X) - 1))
+X_train, X_test = X[:corte], X[corte:]
+y_train, y_test = y[:corte], y[corte:]
+
+escalonador = StandardScaler().fit(X_train)
+X_train = escalonador.transform(X_train)
+X_test = escalonador.transform(X_test)
+
+modelos = {
+    "regressao_logistica": LogisticRegression(max_iter=1000, random_state=seed),
+    "floresta_aleatoria": RandomForestClassifier(n_estimators=200, random_state=seed),
+    "gradient_boosting": GradientBoostingClassifier(random_state=seed),
+}
+metricas = {}
+for nome, modelo in modelos.items():
+    modelo.fit(X_train, y_train)
+    previsoes = modelo.predict(X_test)
+    metricas[nome] = {
+        "acuracia": float(accuracy_score(y_test, previsoes)),
+        "f1_score": float(f1_score(y_test, previsoes, zero_division=0)),
+    }
+    probabilidades = modelo.predict_proba(X_test)[:, 1]
+    metricas[nome]["auc_roc"] = float(roc_auc_score(y_test, probabilidades))
+'''
 
 
 @dataclass
@@ -44,6 +81,9 @@ class ExperimentResult:
     environment: dict[str, Any] = field(default_factory=dict)
     duration_s: float = 0.0
     figures: list[str] = field(default_factory=list)
+    codigo: str = ""
+    status_experimento: str = "ok"
+    auto_debug: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +97,9 @@ class ExperimentResult:
             "environment": self.environment,
             "duration_s": round(self.duration_s, 3),
             "figures": self.figures,
+            "codigo": self.codigo,
+            "status_experimento": self.status_experimento,
+            "auto_debug": self.auto_debug,
         }
 
 
@@ -78,12 +121,26 @@ class ExperimentRunner:
     allow_code_execution: bool = True
     cache_dir: Any = None
     offline: bool = False
+    llm: Any = None
+    max_debug_retries: int = 3
 
-    def run(self, topic: str, hypothesis: dict[str, Any], plan: dict[str, Any] | None = None) -> ExperimentResult:
+    def run(
+        self,
+        topic: str,
+        hypothesis: dict[str, Any],
+        plan: dict[str, Any] | None = None,
+        codigo: str | None = None,
+    ) -> ExperimentResult:
         """Executa o experimento e devolve métricas + testes estatísticos.
 
         Levanta ``RealDataUnavailableError`` se não houver fonte pública real para
         o tópico — nunca cai para uma base sintética.
+
+        O código do experimento (``codigo`` ou ``CODIGO_EXPERIMENTO``) roda em
+        sandbox com auto-debug: se falhar, o LLM corrige e o runner reexecuta, até
+        ``max_debug_retries`` vezes. Esgotadas as tentativas, o resultado é
+        marcado com ``status_experimento="falha_apos_debug"`` e o ciclo segue —
+        o artigo reporta a dificuldade metodológica.
         """
         started = time.time()
         hyp_id = hypothesis.get("id", "H1")
@@ -91,11 +148,8 @@ class ExperimentRunner:
         if not self.allow_code_execution:
             raise RuntimeError("Execução de código desabilitada em config.json (experiments.allow_code_execution)")
 
-        from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+        from sklearn.metrics import f1_score
         from sklearn.model_selection import TimeSeriesSplit, cross_val_score
-        from sklearn.preprocessing import StandardScaler
         from scipy import stats
 
         real = build_real_dataset(topic, cache_dir=self.cache_dir, offline=self.offline)
@@ -107,81 +161,52 @@ class ExperimentRunner:
             )
         X, y, meta = real.X, real.y, real.meta
         X_train, X_test, y_train, y_test = self._split_temporal(X, y)
-        scaler = StandardScaler().fit(X_train)
-        X_train_s, X_test_s = scaler.transform(X_train), scaler.transform(X_test)
 
-        models: dict[str, Any] = {
-            "baseline_estatistico": None,
-            "regressao_logistica": LogisticRegression(max_iter=1000, random_state=self.seed),
-            "floresta_aleatoria": RandomForestClassifier(n_estimators=200, random_state=self.seed),
-            "gradient_boosting": GradientBoostingClassifier(random_state=self.seed),
-        }
+        # Auto-debug: o código roda de fato e, se quebrar, é corrigido pelo LLM.
+        executado = self._run_experiment_code(codigo or CODIGO_EXPERIMENTO, X, y, meta, topic, hyp_id)
+        if not executado.sucesso:
+            return self._falha_apos_debug(hyp_id, topic, meta, executado, started)
+
+        namespace = executado.namespace
+        modelos_treinados: dict[str, Any] = namespace.get("modelos") or {}
 
         metrics: dict[str, dict[str, float]] = {}
         per_sample_errors: dict[str, np.ndarray] = {}
 
-        for name, model in models.items():
-            if model is None:
-                # Linha de base honesta e específica do problema: para série
-                # temporal, persistir o estado atual (dengue: nível de alerta já
-                # ativo; painéis anuais: repetir a tendência recente). É o que um
-                # serviço faria sem modelo algum.
-                y_pred, y_score = self._baseline_prediction(X_test, meta)
-            else:
-                model.fit(X_train_s, y_train)
-                y_pred = model.predict(X_test_s)
-                y_score = (
-                    model.predict_proba(X_test_s)[:, 1]
-                    if hasattr(model, "predict_proba")
-                    else model.decision_function(X_test_s)
-                )
-            acc = float(accuracy_score(y_test, y_pred))
-            f1 = float(f1_score(y_test, y_pred, zero_division=0))
-            try:
-                auc = float(roc_auc_score(y_test, y_score))
-            except ValueError:
-                auc = float("nan")
-            # Série temporal não pode usar CV aleatório: dobrar o futuro no
-            # treino inflaria as métricas. TimeSeriesSplit respeita a ordem.
-            if model is not None:
-                cv = cross_val_score(model, X, y, cv=TimeSeriesSplit(n_splits=5), scoring="f1")
-            else:
-                cv = np.array([f1] * 5)
-            lo, hi = _bootstrap_ci((y_pred == y_test).astype(float), np.mean, alpha=self.alpha, seed=self.seed)
-            metrics[name] = {
-                "acuracia": round(acc, 4),
-                "f1_score": round(f1, 4),
-                "auc_roc": round(auc, 4) if auc == auc else None,
-                "acuracia_ic95_inf": round(lo, 4),
-                "acuracia_ic95_sup": round(hi, 4),
-                "cv_f1_media": round(float(np.mean(cv)), 4),
-                "cv_f1_desvio": round(float(np.std(cv)), 4),
-            }
+        # Linha de base honesta e específica do problema: para série temporal,
+        # persistir o estado atual (dengue: nível de alerta já ativo; painéis
+        # anuais: repetir a tendência recente). É o que um serviço faria sem
+        # modelo algum.
+        y_pred_base, y_score_base = self._baseline_prediction(X_test, meta)
+        metrics["baseline_estatistico"] = self._metricas(
+            y_test, y_pred_base, y_score_base, np.array([f1_score(y_test, y_pred_base, zero_division=0)] * 5)
+        )
+        per_sample_errors["baseline_estatistico"] = (y_pred_base == y_test).astype(float)
+
+        for name, modelo in modelos_treinados.items():
+            y_pred = modelo.predict(namespace["X_test"])
+            y_score = (
+                modelo.predict_proba(namespace["X_test"])[:, 1]
+                if hasattr(modelo, "predict_proba")
+                else modelo.decision_function(namespace["X_test"])
+            )
+            # Série temporal não pode usar CV aleatório: dobrar o futuro no treino
+            # inflaria as métricas. TimeSeriesSplit respeita a ordem.
+            cv = cross_val_score(modelo, X, y, cv=TimeSeriesSplit(n_splits=5), scoring="f1")
+            metrics[name] = self._metricas(y_test, y_pred, y_score, cv)
             per_sample_errors[name] = (y_pred == y_test).astype(float)
 
-        baseline = per_sample_errors["baseline_estatistico"]
-        tests: dict[str, Any] = {}
-        for name in ("regressao_logistica", "floresta_aleatoria", "gradient_boosting"):
-            sample = per_sample_errors[name]
-            if np.allclose(sample, baseline):
-                tests[f"t_pareado_vs_baseline_{name}"] = {"p_valor": 1.0, "estatistica": 0.0, "significativo": False}
-                tests[f"wilcoxon_vs_baseline_{name}"] = {"p_valor": 1.0, "estatistica": 0.0, "significativo": False}
-                continue
-            t_stat, p_t = stats.ttest_rel(sample, baseline)
-            try:
-                w_stat, p_w = stats.wilcoxon(sample, baseline)
-            except ValueError:
-                w_stat, p_w = 0.0, 1.0
-            tests[f"t_pareado_vs_baseline_{name}"] = {
-                "p_valor": round(float(p_t), 6),
-                "estatistica": round(float(t_stat), 4),
-                "significativo": bool(p_t < self.alpha),
-            }
-            tests[f"wilcoxon_vs_baseline_{name}"] = {
-                "p_valor": round(float(p_w), 6),
-                "estatistica": round(float(w_stat), 4),
-                "significativo": bool(p_w < self.alpha),
-            }
+        if not modelos_treinados:
+            return self._falha_apos_debug(
+                hyp_id,
+                topic,
+                meta,
+                executado,
+                started,
+                erro_extra="O código rodou mas não produziu o dicionário 'modelos'.",
+            )
+
+        tests = self._testes_estatisticos(per_sample_errors, stats)
 
         best_model = max(
             (n for n in metrics if metrics[n]["f1_score"] is not None),
@@ -204,9 +229,135 @@ class ExperimentRunner:
                 "scipy": _pkg_version("scipy"),
             },
             duration_s=time.time() - started,
+            codigo=executado.codigo,
+            status_experimento="ok",
+            auto_debug={
+                "tentativas": executado.tentativas,
+                "correcoes_aplicadas": len(executado.correcoes),
+            },
         )
         result.figures = self._save_figures(result)
         return result
+
+    # --------------------------------------------------------------- execução
+    def _run_experiment_code(
+        self,
+        codigo: str,
+        X: np.ndarray,
+        y: np.ndarray,
+        meta: dict[str, Any],
+        topic: str,
+        hyp_id: str,
+    ) -> Any:
+        """Executa o código do experimento em sandbox, com auto-debug."""
+        base = {
+            "X": X,
+            "y": y,
+            "meta": meta,
+            "topic": topic,
+            "seed": self.seed,
+            "test_size": self.test_size,
+            "alpha": self.alpha,
+            "hypothesis_id": hyp_id,
+        }
+        objetivo = f"treinar modelos preditivos para o tópico {topic!r} sobre observações reais ({meta.get('origem')})"
+        return executar_com_auto_debug(
+            codigo,
+            llm=self.llm,
+            objetivo=objetivo,
+            base=base,
+            max_retries=self.max_debug_retries,
+        )
+
+    def _falha_apos_debug(
+        self,
+        hyp_id: str,
+        topic: str,
+        meta: dict[str, Any],
+        executado: Any,
+        started: float,
+        erro_extra: str = "",
+    ) -> ExperimentResult:
+        """Resultado honesto quando o auto-debug não conseguiu fazer o código rodar.
+
+        Não inventa métricas: devolve ``metrics={}`` e o erro real, para que o
+        ciclo continue e o manuscrito reporte a dificuldade metodológica.
+        """
+        erro = erro_extra or executado.erro or "falha desconhecida"
+        logger.error("Experimento marcado como falha_apos_debug: %s", erro)
+        return ExperimentResult(
+            hypothesis_id=hyp_id,
+            topic=topic,
+            seed=self.seed,
+            metrics={},
+            statistical_tests={},
+            best_model="",
+            dataset=meta,
+            environment={"python": sys.version.split()[0], "plataforma": platform.platform()},
+            duration_s=time.time() - started,
+            codigo=executado.codigo,
+            status_experimento="falha_apos_debug",
+            auto_debug={
+                "tentativas": executado.tentativas,
+                "correcoes_aplicadas": len(executado.correcoes),
+                "erro_final": erro,
+                "traceback": executado.traceback,
+            },
+        )
+
+    def _metricas(
+        self,
+        y_test: np.ndarray,
+        y_pred: np.ndarray,
+        y_score: np.ndarray,
+        cv: np.ndarray,
+    ) -> dict[str, float]:
+        """Métricas reais de um modelo: acurácia, F1, AUC, IC bootstrap e CV."""
+        from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+        try:
+            auc = float(roc_auc_score(y_test, y_score))
+        except ValueError:
+            auc = float("nan")
+        lo, hi = _bootstrap_ci((y_pred == y_test).astype(float), np.mean, alpha=self.alpha, seed=self.seed)
+        return {
+            "acuracia": round(float(accuracy_score(y_test, y_pred)), 4),
+            "f1_score": round(float(f1_score(y_test, y_pred, zero_division=0)), 4),
+            "auc_roc": round(auc, 4) if auc == auc else None,
+            "acuracia_ic95_inf": round(lo, 4),
+            "acuracia_ic95_sup": round(hi, 4),
+            "cv_f1_media": round(float(np.mean(cv)), 4),
+            "cv_f1_desvio": round(float(np.std(cv)), 4),
+        }
+
+    def _testes_estatisticos(self, per_sample_errors: dict[str, np.ndarray], stats: Any) -> dict[str, Any]:
+        """Testes pareados (t de Student e Wilcoxon) contra a linha de base."""
+        baseline = per_sample_errors["baseline_estatistico"]
+        tests: dict[str, Any] = {}
+        for name in ("regressao_logistica", "floresta_aleatoria", "gradient_boosting"):
+            if name not in per_sample_errors:
+                continue
+            sample = per_sample_errors[name]
+            if np.allclose(sample, baseline):
+                tests[f"t_pareado_vs_baseline_{name}"] = {"p_valor": 1.0, "estatistica": 0.0, "significativo": False}
+                tests[f"wilcoxon_vs_baseline_{name}"] = {"p_valor": 1.0, "estatistica": 0.0, "significativo": False}
+                continue
+            t_stat, p_t = stats.ttest_rel(sample, baseline)
+            try:
+                w_stat, p_w = stats.wilcoxon(sample, baseline)
+            except ValueError:
+                w_stat, p_w = 0.0, 1.0
+            tests[f"t_pareado_vs_baseline_{name}"] = {
+                "p_valor": round(float(p_t), 6),
+                "estatistica": round(float(t_stat), 4),
+                "significativo": bool(p_t < self.alpha),
+            }
+            tests[f"wilcoxon_vs_baseline_{name}"] = {
+                "p_valor": round(float(p_w), 6),
+                "estatistica": round(float(w_stat), 4),
+                "significativo": bool(p_w < self.alpha),
+            }
+        return tests
 
     # ------------------------------------------------------------- data splits
     def _split_temporal(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
