@@ -448,3 +448,52 @@ def test_cliente_sem_router_mantem_comportamento_antigo() -> None:
 
     assert resp.provider == "modelo-codigo-1"
     assert "max_tokens" not in p.chamadas[0]  # sem roteador, sem preset
+
+
+# --------------------------------------------------------------------------- #
+# Extração de texto: modelos de raciocínio devolvem content=null
+# --------------------------------------------------------------------------- #
+def test_extrai_texto_de_resposta_normal() -> None:
+    from llm_providers import _extrair_texto
+
+    corpo = {"choices": [{"message": {"content": "resposta"}, "finish_reason": "stop"}]}
+    assert _extrair_texto(corpo) == "resposta"
+
+
+@pytest.mark.parametrize("campo", ["reasoning_content", "reasoning"])
+def test_raciocinio_truncado_falha_com_mensagem_util(campo: str) -> None:
+    """``content=null`` + raciocínio não pode virar resposta do paper.
+
+    Nemotron e os modelos "thinking" do Gemini devolvem o rascunho em
+    ``reasoning_content``/``reasoning``. Antes o acesso direto a
+    ``["content"]`` levantava TypeError/KeyError — a cascata registrava o
+    modelo como falho e caía para o próximo, mesmo ele tendo respondido.
+    """
+    from llm_providers import _extrair_texto
+
+    corpo = {
+        "choices": [
+            {"message": {"content": None, campo: "pensando..."}, "finish_reason": "length"}
+        ]
+    }
+    with pytest.raises(RuntimeError, match="raciocínio"):
+        _extrair_texto(corpo)
+
+
+def test_resposta_sem_choices_falha_com_mensagem_util() -> None:
+    """Corpo de erro (sem ``choices``) não deve estourar TypeError cru."""
+    from llm_providers import _extrair_texto
+
+    with pytest.raises(RuntimeError, match="choices"):
+        _extrair_texto({"error": {"message": "boom"}})
+    with pytest.raises(RuntimeError, match="choices"):
+        _extrair_texto({"choices": []})
+
+
+def test_conteudo_em_branco_nao_conta_como_resposta() -> None:
+    from llm_providers import _extrair_texto
+
+    corpo = {"choices": [{"message": {"content": "   "}, "finish_reason": "stop"}]}
+    with pytest.raises(RuntimeError, match="texto utilizável"):
+        _extrair_texto(corpo)
+

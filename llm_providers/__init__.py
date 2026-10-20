@@ -567,6 +567,39 @@ def _placeholder(valor: str | None) -> bool:
     return valor.strip().lower() in _PLACEHOLDERS
 
 
+def _extrair_texto(body: dict[str, Any]) -> str:
+    """Extrai o texto de uma resposta OpenAI-compatível.
+
+    Modelos de raciocínio (nemotron, magistral, gemini "thinking") devolvem
+    ``content: null`` e o texto em ``reasoning_content``/``reasoning``. O acesso
+    direto a ``body["choices"][0]["message"]["content"]`` levanta TypeError ou
+    KeyError nesses casos, e a cascata trata um modelo que respondeu como se
+    tivesse falhado — gastando uma tentativa e caindo para o próximo.
+
+    Se só houver raciocínio (``finish_reason == "length"``), o texto é um
+    rascunho truncado, não a resposta: devolvê-lo contaminaria o paper. Nesse
+    caso falha com mensagem explícita, para o log dizer o motivo real e a
+    cascata seguir. Na prática indica ``max_tokens`` baixo demais para o modelo
+    terminar de raciocinar.
+    """
+    choices = body.get("choices") or []
+    if not choices:
+        raise RuntimeError(f"resposta sem 'choices': {str(body)[:200]}")
+    choice = choices[0] or {}
+    message = choice.get("message") or {}
+    conteudo = message.get("content")
+    if isinstance(conteudo, str) and conteudo.strip():
+        return conteudo
+    raciocinio = message.get("reasoning_content") or message.get("reasoning")
+    if isinstance(raciocinio, str) and raciocinio.strip():
+        motivo = choice.get("finish_reason") or "desconhecido"
+        raise RuntimeError(
+            f"resposta só com raciocínio (finish_reason={motivo}); "
+            "aumente max_tokens para o modelo concluir"
+        )
+    raise RuntimeError(f"resposta sem texto utilizável: {str(choice)[:200]}")
+
+
 @dataclass
 class OpenAICompatibleProvider:
     """Cliente HTTP para endpoints compatíveis com ``/chat/completions``."""
@@ -634,7 +667,7 @@ class OpenAICompatibleProvider:
             raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
         except urllib.error.URLError as exc:  # pragma: no cover - depende de rede
             raise RuntimeError(f"Falha de conexão: {exc.reason}") from exc
-        return body["choices"][0]["message"]["content"]
+        return _extrair_texto(body)
 
 
 # --------------------------------------------------------------------------- #
