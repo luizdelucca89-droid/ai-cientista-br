@@ -193,12 +193,17 @@ def build_dengue_outbreak_dataset(
     api: InfoDengueAPI | None = None,
     cache_dir: Any = None,
     offline: bool = False,
+    lags: int = 0,
 ) -> RealDataset | None:
     """Monta o dataset de surto de dengue a partir do InfoDengue.
 
     Alvo: ``nivel`` da semana seguinte ``>= limiar_surto``. Cada linha usa apenas
     informação disponível até a semana t, e a validação é temporal (ver
     ``meta["split"]``), então não há vazamento do futuro para o treino.
+
+    Com ``lags > 0``, cada linha acrescenta as mesmas variáveis observadas na
+    semana ``t - lags`` (defasagem temporal), todas medições reais — a
+    proveniência registra as colunas de defasagem em ``meta["variaveis"]``.
 
     Com ``offline=True``, reproduz as observações reais gravadas em
     ``cache_dir`` (sem rede). Devolve ``None`` quando não há dados observados —
@@ -220,18 +225,29 @@ def build_dengue_outbreak_dataset(
     for registro in registros:
         por_cidade.setdefault(int(registro["geocode"]), []).append(registro)
 
-    pares: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    # Cada par vira (semana atual, semana seguinte, semana t-lags). A referência de
+    # defasagem é a mesma série da cidade, então nenhum valor de outra localidade
+    # nem do futuro entra na linha.
+    pares: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]] = []
     descartadas = 0
     for serie in por_cidade.values():
         serie.sort(key=lambda x: x.get("SE", 0))
-        for atual, proximo in zip(serie, serie[1:]):
+        for i in range(len(serie) - 1):
+            atual, proximo = serie[i], serie[i + 1]
             if any(atual.get(campo) is None for campo in FEATURES_DENGUE):
                 descartadas += 1
                 continue
             if proximo.get("nivel") is None:
                 descartadas += 1
                 continue
-            pares.append((atual, proximo))
+            anterior = None
+            if lags > 0:
+                j = i - lags
+                if j < 0 or any(serie[j].get(campo) is None for campo in FEATURES_DENGUE):
+                    descartadas += 1
+                    continue
+                anterior = serie[j]
+            pares.append((atual, proximo, anterior))
 
     if len(pares) < 50:
         logger.warning("Apenas %s semanas completas no InfoDengue; insuficiente.", len(pares))
@@ -240,17 +256,28 @@ def build_dengue_outbreak_dataset(
     # Ordena por semana epidemiológica para permitir corte temporal cronológico.
     pares.sort(key=lambda p: (p[0].get("SE", 0), p[0].get("geocode", 0)))
 
-    X = np.array([[float(atual[campo]) for campo in FEATURES_DENGUE] for atual, _ in pares])
-    y = np.array([int(float(proximo["nivel"]) >= limiar_surto) for _, proximo in pares])
+    variaveis = list(FEATURES_DENGUE)
+    if lags > 0:
+        variaveis += [f"{campo}_lag{lags}" for campo in FEATURES_DENGUE]
 
-    municipios = sorted({atual["municipio"] for atual, _ in pares})
-    semanas = [int(atual["SE"]) for atual, _ in pares]
+    def _linha(atual: dict[str, Any], anterior: dict[str, Any] | None) -> list[float]:
+        valores = [float(atual[campo]) for campo in FEATURES_DENGUE]
+        if lags > 0 and anterior is not None:
+            valores += [float(anterior[campo]) for campo in FEATURES_DENGUE]
+        return valores
+
+    X = np.array([_linha(atual, anterior) for atual, _, anterior in pares])
+    y = np.array([int(float(proximo["nivel"]) >= limiar_surto) for _, proximo, _ in pares])
+
+    municipios = sorted({atual["municipio"] for atual, _, _ in pares})
+    semanas = [int(atual["SE"]) for atual, _, _ in pares]
     meta = _proveniencia(
         "InfoDengue (Fiocruz/FGV) — semanas epidemiológicas observadas",
         "https://info.dengue.mat.br/api/alertcity",
         n_amostras=int(len(y)),
         n_variaveis=int(X.shape[1]),
-        variaveis=list(FEATURES_DENGUE),
+        variaveis=variaveis,
+        defasagem_semanas=lags,
         alvo=f"nivel da proxima semana >= {limiar_surto} (surto)",
         balanceamento={"positivos": int(y.sum()), "negativos": int((1 - y).sum())},
         municipios=municipios,
@@ -502,12 +529,13 @@ def build_education_dataset(
     return RealDataset(X=X, y=y, meta=meta)
 
 
-def build_real_dataset(topic: str, cache_dir: Any = None, offline: bool = False) -> RealDataset | None:
+def build_real_dataset(topic: str, cache_dir: Any = None, offline: bool = False, lags: int = 0) -> RealDataset | None:
     """Seleciona o dataset real adequado ao tópico; ``None`` se não houver.
 
     Só devolve dados observados. Quando o tópico não corresponde a nenhuma fonte
     pública implementada, devolve ``None`` e o runner falha explicitamente.
     Com ``offline=True``, reproduz as observações reais gravadas em ``cache_dir``.
+    ``lags > 0`` acrescenta defasagem temporal real (hoje só a dengue a suporta).
     """
     texto = (topic or "").lower()
     # Multimodal antes dos demais: "desmatamento com imagens de satélite" deve
@@ -520,7 +548,7 @@ def build_real_dataset(topic: str, cache_dir: Any = None, offline: bool = False)
             return multimodal
         logger.warning("Tema multimodal, mas sem imagens reais disponíveis; usando painel tabular.")
     if any(g in texto for g in GATILHOS_DENGUE):
-        return build_dengue_outbreak_dataset(cache_dir=cache_dir, offline=offline)
+        return build_dengue_outbreak_dataset(cache_dir=cache_dir, offline=offline, lags=lags)
     # Agricultura antes de desmatamento: "irrigação no Cerrado" tem gatilhos de
     # ambos, e a pergunta agrícola é a mais específica do tópico.
     if any(g in texto for g in GATILHOS_AGRICULTURA):

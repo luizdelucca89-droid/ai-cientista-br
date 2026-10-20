@@ -143,6 +143,20 @@ Sem fonte pública para o tema, o runner levanta `RealDataUnavailableError`. Nã
 existe gerador sintético: `generate_synthetic_dataset` foi removido. Nenhum
 resultado é produzido a partir de dados fabricados.
 
+### O runner honra o desenho experimental
+
+O desenho do experimentalista (`plan["modelos"]`) escolhe **quais** estimadores
+treinar; `plan["pre_processamento"]` pode pedir defasagem temporal ("lag de 4
+semanas"). `_modelos_do_desenho` mapeia apelos livres ("Random Forest com Lag de
+4 semanas") para estimadores reais e `_codigo_do_desenho` gera o script só com os
+pedidos; `_defasagem_do_desenho` lê o lag e o construtor de dengue acrescenta as
+colunas `*_lagN` (medições reais de `t-N`, sem vazamento do futuro). Sem desenho,
+vale a tríade padrão (logística, floresta, boosting). Armadilha: antes disso o
+`plan` era recebido e **ignorado** — todo ciclo treinava a mesma tríade e tópicos
+distintos produziam experimentos idênticos (o enxame de dengue dava métricas
+iguais nos três braços, o que é uma comparação falsa). Modelos sem estimador
+implementado (SVM, regressão linear) são ignorados, não trocados em silêncio.
+
 Depois de validar, o orquestrador roda uma conferência determinística de
 **fidelidade numérica** (`core/review/numeros.py`): cada número do manuscrito é
 comparado com os dados produzidos, e os que não têm lastro são reportados. Isso
@@ -168,6 +182,11 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
    virava "AUC " e escapava da conferência. Como o texto PT usa vírgula, o defeito
    só aparecia no abstract. Agora o padrão exige um nome de software conhecido
    (python, torch, versão, ...) ou o prefixo `v`.
+3. A **vírgula decimal escapada do LaTeX** (`0{,}235`) virava dois tokens ("0" e
+   "235") antes da conferência, e o "235" era acusado de não ter lastro. O ciclo
+   #138 do enxame de dengue (gradient boosting) foi reprovado no portão só por
+   causa disso, embora todos os seus números fossem fiéis. `_remover_estrutura`
+   agora normaliza `{,}`/`{.}` para vírgula antes de extrair números.
 
 ## Interface gráfica e publicação
 
@@ -188,3 +207,74 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
   prosa e entra na varredura; só termos que de fato denunciam fabricação ficam.
 
 
+
+## LLMs: roteamento por tarefa, coringa e chaves
+
+- `llm_providers/__init__.py` — `TaskRouter` roteia por categoria de tarefa a
+  partir de `config.modelos.json` (`roteamento_por_tarefa`). A cascata tem
+  **três níveis + mock**: modelo da tarefa → alternativa da tarefa → **coringa
+  Gemini** (`fallback_global.coringa`) → `mock`. O coringa é o último recurso
+  *real*: sem ele, um dia ruim de cota em uma categoria caía direto no mock.
+  O mock é só para CI/emergência total.
+- Armadilha: `TaskRouter.ativo` conta o coringa. Com **apenas**
+  `GEMINI_API_KEY`, o roteamento já é útil (o coringa atende qualquer tarefa).
+- Armadilha: `_signature()` inclui o coringa. Sem isso, a resposta real dele
+  numa execução seria devolvida como cache para a execução em que só há mock.
+- Armadilha: ao adicionar o coringa em `_providers_para`, use
+  `coringa.available()` — um coringa sem chave só gera "indisponível" no log.
+  E não o duplique: `build_task_router` o remove da `cadeia_global`.
+- Chaves ficam em `.env` (no `.gitignore`; modelo versionado em `.env.example`).
+  `carregar_env()` roda na **importação** de `llm_providers` com
+  `override=False`: variável já exportada no shell vence o arquivo. Antes só o
+  `app.py` carregava o `.env`, então `main.py` não enxergava as chaves.
+- Armadilha: `available()` rejeita placeholders (`sua_chave_real_aqui`, vazio,
+  só espaços). Sem isso, um `.env` recém-copiado fazia o provider parecer
+  disponível e gastava uma tentativa para voltar 401.
+- `tests/conftest.py` remove chaves de provider do ambiente (autouse). Sem
+  isso, com uma chave real exportada o roteador fica ativo e testes que esperam
+  um servidor local ou o mock passam a tentar a rede — a suíte fica
+  intermitente. Testes que precisam de chave a definem via `monkeypatch`.
+- Para validar a cascata com HTTP real sem cota: suba dois servidores
+  OpenAI-compatíveis locais (um sempre 429, outro 200), aponte o catálogo para
+  eles e exporte chaves falsas. Confira `metricas_llm.por_provider` no
+  `ciclo_completo.json` — `mock` não deve aparecer.
+
+
+
+## Pipeline de pesquisa real: dengue + NDVI (dados 100% reais)
+
+- **Zero dados sintéticos é regra dura.** integrations/satellite_ndvi.py e
+  core/experiments/dengue_satellite.py falham com exceção explícita
+  (SateliteIndisponivelError, RealDataUnavailableError) quando a fonte real
+  não responde; nada é fabricado no lugar.
+- **Armadilha do gzip:** a API de malhas do IBGE
+  (servicodados.ibge.gov.br/api/v3/malhas) responde Content-Encoding: gzip, e
+  urllib não descomprime sozinho. Sem gzip.decompress, o json.loads quebra com
+  'Expecting value'. O _get do módulo de satélite já trata isso.
+- **NDVI é índice de paleta, não valor físico.** O PNG do NASA GIBS é mode=P
+  (paleta). O valor físico sai do colormap oficial
+  (colormaps/v1.0/MODIS_L3_NDVI.xml, 142 entradas RGB->NDVI). Usar o índice de
+  paleta como se fosse NDVI dá número sem significado.
+- **Agregação espacial explícita:** o polígono real do IBGE é rasterizado sobre
+  o tile (por linha de latitude, via intersection com LineString) e só os
+  pixels dentro da fronteira entram na média. Média do tile inteiro mistura
+  município com o entorno.
+- **Agregação temporal sem vazamento:** o composto MODIS de 16 dias é rotulado
+  pelo primeiro dia do período. Usar o rótulo mais próximo da semana incluiria
+  dias futuros; recuamos DEFASAGEM_COMPOSTO_DIAS=16 para o composto ter
+  terminado antes da semana-alvo.
+- **Resultado real é nulo, e isso fica.** ΔF1 do satélite isolado (B vs C, mesmo
+  algoritmo) = +0,0049, abaixo do limiar pré-registrado de 0,02. O ganho de B
+  sobre A (+0,0177) vem da troca LogReg->GB, não do satélite. Na sensibilidade
+  sem nivel/nivel_inc, o satélite atrapalha (ΔF1 = -0,0483). Não ajustar nada
+  para 'melhorar' a história.
+- **Portão de fidelidade numérica:** core/review/numeros.py acusa número sem
+  lastro. Ao rodá-lo sobre o .tex, escope só o corpo (begin document até begin
+  thebibliography) e remova cite, url, includegraphics etc. — senão fragmentos
+  de DOI e anos de referência aparecem como 'sem lastro'.
+- **LaTeX sem root:** tectonic (binário único, baixa os pacotes sob demanda)
+  compila o PDF do paper. pdflatex não está instalado e o apt-get não tem
+  permissão.
+- **Reprodutibilidade:** python experimentos/dengue_ndvi.py --offline reproduz
+  os mesmos números do cache em segundos. Os números do paper são injetados de
+  resultados/resultado_consolidado.json, nunca digitados.

@@ -1,0 +1,230 @@
+{
+  "_comentario": "Catalogo de modelos gratuitos validados contra a tarefa real do pipeline (desenho experimental em JSON, PT-BR), gerado por benchmark_models.py em 2026-10-19. Ver MODELOS_VALIDADOS.md para a analise. Cada entrada de 'roteamento_por_tarefa' lista modelos na ORDEM de preferencia: o roteador tenta do primeiro ao ultimo e cai para o proximo quando um falha (429, 5xx, timeout). 'modelos' define provider/base_url/api_key_env de cada modelo citado. 'presets' define max_tokens por categoria.",
+  "roteamento_por_tarefa": {
+    "raciocinio": [
+      "nvidia/nemotron-3-ultra-550b-a55b",
+      "gemini-3.5-flash",
+      "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "gemini-3.5-flash-lite"
+    ],
+    "redacao": [
+      "gemini-flash-latest",
+      "z-ai/glm-5.3",
+      "nvidia/muse-glimmer-30b",
+      "mistral/ministral-14b-latest"
+    ],
+    "codigo": [
+      "mistral/codestral-latest",
+      "mistral/voxtral-small-latest",
+      "nvidia/nemotron-3.5-lightning-30b-a3b",
+      "cohere/north-mini-code:free"
+    ],
+    "alto_volume": [
+      "mistral/ministral-8b-latest",
+      "mistral/ministral-3b-latest",
+      "nvidia/nemotron-3.5-super-vl:free",
+      "minimax/minimax-m3.1-flash:free"
+    ],
+    "multimodal": [
+      "nvidia/nemotron-3.5-super-vl:free",
+      "nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "gemini-3.5-flash",
+      "gemini-flash-latest"
+    ],
+    "validacao_cruzada": [
+      "liquid/lfm-2.5-2.6b:free",
+      "z-ai/glm-5.3",
+      "openai/gpt-oss-20b",
+      "gemini-3.5-flash-lite"
+    ]
+  },
+  "tarefas_para_categoria": {
+    "gap": "raciocinio",
+    "hypotheses": "raciocinio",
+    "novelty": "raciocinio",
+    "review": "raciocinio",
+    "section": "redacao",
+    "translate": "redacao",
+    "rebuttal": "redacao",
+    "rebuttal_response": "redacao",
+    "experiment_plan": "codigo",
+    "analysis": "codigo",
+    "auto_debug": "codigo",
+    "score": "alto_volume",
+    "compliance": "alto_volume",
+    "voting": "alto_volume",
+    "satellite_features": "multimodal",
+    "chart_reading": "multimodal"
+  },
+  "presets": {
+    "_comentario": "max_tokens por categoria. Raciocinio e codigo gastam o orcamento em chain-of-thought antes do JSON; com 512 tokens o conteudo volta vazio (comprovado no benchmark).",
+    "raciocinio": {
+      "max_tokens": 4096
+    },
+    "redacao": {
+      "max_tokens": 2048
+    },
+    "codigo": {
+      "max_tokens": 4096
+    },
+    "alto_volume": {
+      "max_tokens": 2048
+    },
+    "multimodal": {
+      "max_tokens": 2048
+    },
+    "validacao_cruzada": {
+      "max_tokens": 2048
+    },
+    "padrao": {
+      "max_tokens": 2048
+    }
+  },
+  "modelos": {
+    "nvidia/muse-glimmer-30b": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY",
+      "model": "meta/muse-glimmer-30b"
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY"
+    },
+    "nvidia/nemotron-3.5-lightning-30b-a3b": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY"
+    },
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY"
+    },
+    "openai/gpt-oss-20b": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY"
+    },
+    "z-ai/glm-5.3": {
+      "provider": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY"
+    },
+    "mistral/codestral-latest": {
+      "provider": "mistral",
+      "base_url": "https://api.mistral.ai/v1",
+      "api_key_env": "MISTRAL_API_KEY",
+      "model": "codestral-latest"
+    },
+    "mistral/ministral-14b-latest": {
+      "provider": "mistral",
+      "base_url": "https://api.mistral.ai/v1",
+      "api_key_env": "MISTRAL_API_KEY",
+      "model": "ministral-14b-latest"
+    },
+    "mistral/ministral-3b-latest": {
+      "provider": "mistral",
+      "base_url": "https://api.mistral.ai/v1",
+      "api_key_env": "MISTRAL_API_KEY",
+      "model": "ministral-3b-latest"
+    },
+    "mistral/ministral-8b-latest": {
+      "provider": "mistral",
+      "base_url": "https://api.mistral.ai/v1",
+      "api_key_env": "MISTRAL_API_KEY",
+      "model": "ministral-8b-latest"
+    },
+    "mistral/voxtral-small-latest": {
+      "provider": "mistral",
+      "base_url": "https://api.mistral.ai/v1",
+      "api_key_env": "MISTRAL_API_KEY",
+      "model": "voxtral-small-latest"
+    },
+    "gemini-3.5-flash": {
+      "provider": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "api_key_env": "GEMINI_API_KEY"
+    },
+    "gemini-3.5-flash-lite": {
+      "provider": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "api_key_env": "GEMINI_API_KEY"
+    },
+    "gemini-flash-latest": {
+      "provider": "gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "api_key_env": "GEMINI_API_KEY"
+    },
+    "cohere/north-mini-code:free": {
+      "provider": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY"
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "provider": "openrouter",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    "minimax/minimax-m3.1-flash:free": {
+      "provider": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY"
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b:free": {
+      "provider": "openrouter",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    "nvidia/nemotron-3.5-super-vl:free": {
+      "provider": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY"
+    }
+  },
+  "fallback_global": {
+    "_comentario": "Usado quando TODOS os modelos da categoria falham. Ordem: coringa (ultima API real) e, so se ele tambem falhar, mock (CI/emergencia).",
+    "coringa": "gemini-flash-latest",
+    "cadeia": [
+      "mock"
+    ]
+  },
+  "providers": [
+    {
+      "name": "nvidia",
+      "type": "openai_compatible",
+      "api_key_env": "NVIDIA_API_KEY",
+      "base_url": "https://integrate.api.nvidia.com/v1"
+    },
+    {
+      "name": "mistral",
+      "type": "openai_compatible",
+      "api_key_env": "MISTRAL_API_KEY",
+      "base_url": "https://api.mistral.ai/v1"
+    },
+    {
+      "name": "gemini",
+      "type": "openai_compatible",
+      "api_key_env": "GEMINI_API_KEY",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
+    },
+    {
+      "name": "openrouter",
+      "type": "openai_compatible",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    {
+      "name": "mock",
+      "type": "mock"
+    }
+  ],
+  "parametros": {
+    "temperature": 0.2,
+    "retries": 2,
+    "max_tokens_minimo": 2048,
+    "max_tokens_redator": 8192,
+    "pausa_entre_chamadas_s": 2.0
+  }
+}

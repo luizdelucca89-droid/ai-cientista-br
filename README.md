@@ -23,7 +23,7 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 | Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
 | Base experimental | **Sempre real, com procedência.** Cada matriz vem de observações públicas baixadas ao vivo: InfoDengue (dengue), INPE/PRODES (desmatamento), IBGE/SIDRA PAM (agricultura) e IBGE/SIDRA ODS (educação). Os metadados registram `tipo: dados_reais`, a fonte, a URL e a data de coleta. **Não existe mais gerador sintético**: sem fonte pública para o tema, o runner levanta `RealDataUnavailableError` em vez de fabricar números. Um cache versionado (`data/dataset_cache/`) guarda as observações reais para replay offline determinístico. |
 | Modalidade imagem (satélite) | **Real.** Para temas como "desmatamento com imagens de satélite", o sistema baixa o mosaico temporal do PRODES no WMS público do TerraBrasilis/INPE e extrai um vetor de features (textura Haralick + cor/vegetação) da imagem real, concatenado ao painel tabular. Nenhum pixel é sintetizado: sem imagem real e sem cache, o código falha explicitamente. |
-| Fidelidade numérica | **Real.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito contra os dados produzidos e reporta os que não têm lastro. |
+| Fidelidade numérica | **Real e bloqueante.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito (inclusive o `abstract` em inglês) contra os dados produzidos, **reescreve** as seções que citam número sem lastro e, no fim, recusa o pacote de submissão (`IntegrityError`) se ainda houver número fabricado. Um número inventado pelo LLM não chega ao PDF publicado. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
 | Portal da Transparência | Exige chave de API gratuita; sem token a fonte é marcada como indisponível, nunca substituída. |
@@ -125,6 +125,37 @@ python examples/quick_start.py      # dengue
 python examples/agronegocio.py      # irrigação no Cerrado
 python examples/educacao.py         # gamificação
 ```
+
+### Ataque de enxame (swarm)
+
+`swarm_dengue.py` roda três ciclos em sequência sobre o mesmo fenômeno (surtos de
+dengue), variando a modelagem, e imprime um painel comparativo. Os dados são
+sempre observados (InfoDengue); a comparação cobre ciclo, modelo, F1/AUC,
+fidelidade numérica e procedência.
+
+```bash
+python swarm_dengue.py
+AI_CIENTISTA_CONFIG=config.free-stack.json python swarm_dengue.py   # provider real
+
+cat resultado_swarm.txt      # painel gravado ao final
+```
+
+Modelagens do enxame: baseline climático com regressão logística, features de
+defasagem temporal (lag de 4 semanas) com Random Forest e Gradient Boosting com
+validação cruzada temporal estrita. Cada braço treina **apenas** o modelo pedido
+no desenho experimental — o painel compara de fato modelagens distintas.
+
+Resultado de uma execução real (Gemini, dados do InfoDengue, n=817 semanas):
+
+| # | Ciclo | Modelo | F1 | AUC | Fidelidade |
+|---|-------|--------|-----|-----|------------|
+| 1 | #143 | regressão logística (baseline climático) | 0,8696 | 0,9834 | ok |
+| 2 | #144 | floresta aleatória + lag de 4 semanas (n=779) | 0,8974 | 0,9757 | ok |
+| 3 | #145 | gradient boosting + CV temporal estrita | 0,8989 | 0,9828 | ok |
+
+Os três ciclos usam dados reais, passam o portão de submissão e geram pacote
+(`paper.pdf`, `paper.tex`, `bibliografia.bib`, código e metadados de
+procedência); as métricas diferem porque os modelos e as features diferem.
 
 Uso como biblioteca:
 
@@ -273,6 +304,115 @@ prompts para treinar. Para pesquisa com dados sensíveis, use um modelo local
 (Ollama, vLLM) apontando `base_url` para `http://localhost:11434/v1`.
 
 Para validar o pipeline sem gastar cota, use `--provider mock`.
+
+### Catálogo de modelos testados
+
+Cada modelo foi chamado com a tarefa real do pipeline (desenho experimental em
+JSON, PT-BR). O resultado está em **[MODELOS_VALIDADOS.md](MODELOS_VALIDADOS.md)**
+e, em formato legível por máquina, em `config.modelos.json`.
+
+```bash
+export OPENROUTER_API_KEY=... MISTRAL_API_KEY=... NVIDIA_API_KEY=nvapi-... GEMINI_API_KEY=...
+python benchmark_models.py --provider all
+```
+
+Destaques: `nvidia/nemotron-3-ultra-550b-a55b` (raciocínio, 5 s),
+`mistral/codestral-latest` (código, 1,1 s), `gemini-3.5-flash` (ciência, 8 s),
+`gemini-flash-latest` (redação longa). Reprovados por cota (429) não são falha
+do modelo — anote o motivo ao reexecutar.
+
+### 🧠 Roteamento Inteligente de Modelos (MoE)
+
+Cada agente já declara o tipo do seu trabalho (`task=`), mas isso era ignorado:
+todo mundo usava o mesmo modelo, na mesma ordem. Agora o `LLMClient` lê o
+catálogo validado em `config.modelos.json` e escolhe o melhor modelo **gratuito**
+para cada tarefa — como um mistura-de-especialistas (MoE).
+
+| Categoria | Tarefas | Primeira escolha | Por quê |
+|---|---|---|---|
+| `raciocinio` | gap, hypotheses, novelty, review | `nvidia/nemotron-3-ultra-550b-a55b` | 550B MoE, forte em planejamento; 5 s |
+| `codigo` | experiment_plan, analysis, auto_debug | `mistral/codestral-latest` | especialista em código; 1,1 s |
+| `redacao` | section, translate, rebuttal | `gemini-flash-latest` | contexto longo e prosa PT-BR |
+| `alto_volume` | score, compliance, voting | `mistral/ministral-8b-latest` | rápido e barato |
+| `multimodal` | satellite_features, chart_reading | `nvidia/nemotron-3.5-super-vl:free` | aceita imagem |
+
+**Fallback em cascata.** A ordem é estrita e tem três níveis:
+
+```
+1. Modelo específico da tarefa   (ex.: codestral-latest para código)
+2. Alternativa da mesma tarefa   (ex.: voxtral-small-latest, nemotron-lightning)
+3. 🃏 Coringa: gemini-flash-latest (GEMINI_API_KEY) — a última API real
+4. mock                          (só se o coringa não estiver configurado ou também falhar)
+```
+
+O nível 3 é o seguro contra um dia ruim de cota: se **todos** os modelos da
+categoria estouram, o coringa ainda devolve texto científico real, em vez de o
+pipeline cair no mock (que produz estrutura, não ciência). O mock fica restrito
+a CI e emergência total — sem ele, um teste offline ou uma queda geral de rede
+derrubaria a execução inteira.
+
+Se a `GEMINI_API_KEY` não estiver definida, o nível 3 é pulado e a cadeia
+termina no mock, com um aviso explícito no log:
+
+```
+[LLM Router] Fallback acionado: usando GEMINI_API_KEY como coringa para task=hypotheses
+[LLM Router] task=experiment_plan: mistral/codestral-latest falhou (HTTP 429); próximo da cascata
+```
+
+Cada modelo é tentado **uma vez** antes de descer a cascata — falha transitória
+(429, 5xx, timeout) não gasta backoff no mesmo modelo.
+
+**`max_tokens` por tarefa.** O benchmark mostrou que 512 tokens truncavam
+modelos de raciocínio (gastam o orçamento em chain-of-thought antes do JSON).
+Raciocínio e código recebem 4096; redação e alto volume, 2048. Tarefas com
+contrato JSON estrito também enviam `response_format={"type": "json_object"}`.
+
+O log mostra a decisão:
+
+```
+[LLM Router] task=hypotheses → nvidia/nemotron-3-ultra-550b-a55b (tempo: 5.0s)
+[LLM Router] task=experiment_plan: nvidia/nemotron-3-ultra-550b-a55b falhou (HTTP 429); próximo da cascata
+```
+
+Sem `config.modelos.json`, ou com `--provider mock`, o roteador fica desligado e
+o cliente usa a cadeia única de antes. Para desligar explicitamente, aponte
+`llm.catalogo_modelos` para um caminho inexistente.
+
+**Onde ficam as chaves.** Em `.env` na raiz (que está no `.gitignore`). Copie o
+modelo e preencha:
+
+```bash
+cp .env.example .env
+# edite .env e ponha GEMINI_API_KEY=sua_chave
+```
+
+O `.env` é carregado automaticamente na importação de `llm_providers` (com
+`override=False`: uma variável já exportada no shell vence o arquivo, para não
+mascarar a configuração de CI/produção). Valores de exemplo como
+`sua_chave_real_aqui` são tratados como ausentes, então um `.env` recém-copiado
+não finge ter chave nem gasta uma tentativa com 401.
+
+**Os nomes das variáveis importam.** O catálogo lê exatamente estes nomes — um
+nome diferente deixa o provider indisponível em silêncio e a categoria cai no
+coringa:
+
+| Variável | Modelos | Endpoint |
+|---|---|---|
+| `GEMINI_API_KEY` | 3 (inclui o coringa) | Google AI Studio |
+| `NVIDIA_API_KEY` | 7 | `integrate.api.nvidia.com` (NIM) |
+| `OPENROUTER_API_KEY` | 5 | `openrouter.ai` |
+| `MISTRAL_API_KEY` | 5 | `api.mistral.ai` |
+
+Para conferir o que o roteador vai usar antes de rodar o pipeline:
+
+```bash
+python main.py --doctor --no-network
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok)
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok; chaves ausentes: NVIDIA_API_KEY)
+```
+
+Só `GEMINI_API_KEY` é obrigatória: sem as outras, as categorias sem chave usam o
+coringa (que atende qualquer tarefa), em vez do mock.
 
 ---
 

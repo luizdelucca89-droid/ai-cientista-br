@@ -337,6 +337,58 @@ def test_cycle_failure_is_recorded_in_memory(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Experimentos sensíveis ao desenho (sem rede)
+# --------------------------------------------------------------------------- #
+def test_runner_honra_modelos_do_desenho(tmp_path):
+    """O runner treina os modelos pedidos no desenho, não sempre a mesma tríade.
+
+    É o que faz um tópico diferir do outro: sem isso, todo ciclo treinaria os
+    mesmos três modelos e o painel do enxame seria uma comparação vazia.
+    """
+    from core.experiments.runner import _modelos_do_desenho
+
+    assert _modelos_do_desenho({"modelos": [{"nome": "RegressaoLogistica_Baseline"}]}) == ["regressao_logistica"]
+    assert _modelos_do_desenho({"modelos": [{"nome": "Random Forest com Lag de 4 semanas"}]}) == ["floresta_aleatoria"]
+    assert _modelos_do_desenho({"modelos": [{"nome": "Gradient Boosting"}, {"nome": "SVM"}]}) == ["gradient_boosting"]
+    assert _modelos_do_desenho(None) == ["regressao_logistica", "floresta_aleatoria", "gradient_boosting"]
+
+
+def test_runner_detecta_defasagem_no_desenho():
+    from core.experiments.runner import _defasagem_do_desenho
+
+    assert _defasagem_do_desenho({"pre_processamento": ["feature de defasagem temporal (lag de 4 semanas)"]}) == 4
+    assert _defasagem_do_desenho({"desenho": "usa defasagem de 2 semanas"}) == 2
+    assert _defasagem_do_desenho({}) == 0
+
+
+def test_runner_executa_apenas_modelos_pedidos(tmp_path):
+    """Dois desenhos distintos produzem métricas distintas sobre dados reais."""
+    runner = ExperimentRunner(seed=42, output_dir=tmp_path, cache_dir="data/dataset_cache", offline=True)
+
+    base = runner.run(
+        "Predição de surtos de dengue no Brasil",
+        {"id": "H1"},
+        plan={"modelos": [{"nome": "RegressaoLogistica_Baseline"}]},
+    )
+    lag = runner.run(
+        "Predição de surtos de dengue no Brasil",
+        {"id": "H1"},
+        plan={
+            "modelos": [{"nome": "Random Forest com Lag de 4 semanas"}],
+            "pre_processamento": ["lag de 4 semanas"],
+        },
+    )
+
+    assert set(base.metrics) == {"baseline_estatistico", "regressao_logistica"}
+    assert set(lag.metrics) == {"baseline_estatistico", "floresta_aleatoria"}
+    # A defasagem adiciona uma cópia defasada das features reais.
+    assert lag.dataset["defasagem_semanas"] == 4
+    assert lag.dataset["n_variaveis"] == 2 * base.dataset["n_variaveis"]
+    assert all(campo.endswith("_lag4") for campo in lag.dataset["variaveis"][len(lag.dataset["variaveis"]) // 2 :])
+    assert base.dataset["tipo"] == lag.dataset["tipo"] == "dados_reais"
+
+
+# --------------------------------------------------------------------------- #
 # Integrações reais (rede)
 # --------------------------------------------------------------------------- #
 @pytest.mark.network
@@ -1011,6 +1063,38 @@ def test_doctor_reports_environment(tmp_path):
     assert any("python>=3.11" in n for n in names)
     assert any("diret" in n for n in names)
     assert "DIAGNÓSTICO" in render(result)
+
+
+def test_doctor_reporta_roteamento_por_tarefa(tmp_path):
+    """O diagnóstico expõe o roteador e as chaves que faltam.
+
+    Sem esta checagem, um nome de variável errado no ``.env``
+    (``NVIDIA_NIM_API_KEY`` em vez de ``NVIDIA_API_KEY``) passaria despercebido:
+    o provider fica indisponível em silêncio e a categoria cai no coringa.
+    """
+    from core.doctor import Doctor
+
+    result = Doctor().run(output_dir=str(tmp_path), check_network=False)
+    router_checks = [c for c in result["checks"] if c["name"] == "roteamento por tarefa"]
+    assert router_checks, "o diagnóstico deve reportar o roteador por tarefa"
+    detalhe = router_checks[0]["detail"]
+    assert "categorias" in detalhe
+    # Sem chaves no ambiente (conftest as remove), todas devem ser listadas.
+    assert "NVIDIA_API_KEY" in detalhe
+    assert "GEMINI_API_KEY" in detalhe
+
+
+def test_doctor_nao_quebra_com_catalogo_ausente(tmp_path, monkeypatch):
+    """Catálogo ausente vira aviso, não falha crítica do diagnóstico."""
+    import core.utils as utils
+
+    monkeypatch.setattr(utils, "ROOT", tmp_path)
+    from core.doctor import Doctor
+
+    result = Doctor().run(output_dir=str(tmp_path), check_network=False)
+    assert result["ok"] is True  # o roteador é aviso, não bloqueia o pipeline
+    checks = [c for c in result["checks"] if c["name"] == "roteamento por tarefa"]
+    assert checks and checks[0]["ok"] is False
 
 
 def test_batch_runner_processes_multiple_topics(tmp_path):

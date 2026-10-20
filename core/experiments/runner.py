@@ -16,9 +16,12 @@ pareados.
 
 from __future__ import annotations
 
+import json
 import platform
+import re
 import sys
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -65,6 +68,105 @@ for nome, modelo in modelos.items():
     probabilidades = modelo.predict_proba(X_test)[:, 1]
     metricas[nome]["auc_roc"] = float(roc_auc_score(y_test, probabilidades))
 '''
+
+# Estimadores reais disponíveis e a expressão que os instancia no sandbox.
+_EXPRESSOES_ESTIMADOR: dict[str, str] = {
+    "regressao_logistica": "LogisticRegression(max_iter=1000, random_state=seed)",
+    "floresta_aleatoria": "RandomForestClassifier(n_estimators=200, random_state=seed)",
+    "gradient_boosting": "GradientBoostingClassifier(random_state=seed)",
+}
+MODELOS_PADRAO: tuple[str, ...] = ("regressao_logistica", "floresta_aleatoria", "gradient_boosting")
+
+# Como o LLM costuma escrever cada família de modelo no desenho experimental.
+_APELOS_MODELO: tuple[tuple[str, str], ...] = (
+    ("regressao logistica", "regressao_logistica"),
+    ("regressão logística", "regressao_logistica"),
+    ("logistica", "regressao_logistica"),
+    ("logistic regression", "regressao_logistica"),
+    ("logistic", "regressao_logistica"),
+    ("random forest", "floresta_aleatoria"),
+    ("floresta aleatoria", "floresta_aleatoria"),
+    ("floresta", "floresta_aleatoria"),
+    ("gradient boosting", "gradient_boosting"),
+    ("gradient boost", "gradient_boosting"),
+    ("xgboost", "gradient_boosting"),
+    ("gbm", "gradient_boosting"),
+    ("boosting", "gradient_boosting"),
+)
+
+
+def _normalizar(texto: str) -> str:
+    """Minúsculas sem acento, para casar apelos escritos de formas variadas."""
+    base = unicodedata.normalize("NFKD", (texto or "").lower())
+    return "".join(c for c in base if not unicodedata.combining(c))
+
+
+def _modelos_do_desenho(plan: dict[str, Any] | None) -> list[str]:
+    """Extrai os modelos pedidos no desenho; devolve a tríade padrão se não houver.
+
+    O desenho do experimentalista lista modelos por nome livre ("Random Forest com
+    Lag de 4 semanas"). Mapeamos cada apelo para um estimador real implementado e
+    treinamos **apenas** o que foi pedido — é isso que diferencia um experimento do
+    outro no enxame. Modelos sem estimador real (SVM, regressão linear) são
+    ignorados em vez de silenciosamente trocados por outro.
+    """
+    if not isinstance(plan, dict):
+        return list(MODELOS_PADRAO)
+    textos: list[str] = []
+    for modelo in plan.get("modelos") or []:
+        if isinstance(modelo, dict):
+            textos.append(str(modelo.get("nome", "")))
+        elif isinstance(modelo, str):
+            textos.append(modelo)
+    selecionados: list[str] = []
+    for texto in textos:
+        alvo = _normalizar(texto)
+        for apelo, chave in _APELOS_MODELO:
+            if apelo in alvo and chave not in selecionados:
+                selecionados.append(chave)
+                break
+    # Preserva a ordem canônica para reprodutibilidade entre execuções.
+    ordenados = [m for m in MODELOS_PADRAO if m in selecionados]
+    return ordenados or list(MODELOS_PADRAO)
+
+
+def _defasagem_do_desenho(plan: dict[str, Any] | None) -> int:
+    """Detecta o lag pedido no desenho (ex.: "lag de 4 semanas" → 4). 0 se ausente."""
+    if not isinstance(plan, dict):
+        return 0
+    texto = _normalizar(json.dumps(plan, ensure_ascii=False, default=str))
+    padroes = (
+        r"lag de (\d+)",
+        r"defasagem de (\d+)",
+        r"defasagem temporal de (\d+)",
+        r"(\d+)\s+semanas? de defasagem",
+        r"lag(\d+)",
+    )
+    for padrao in padroes:
+        achado = re.search(padrao, texto)
+        if achado:
+            valor = int(achado.group(1))
+            if 1 <= valor <= 12:
+                return valor
+    return 0
+
+
+def _codigo_do_desenho(modelos: list[str], defasagem: int) -> str:
+    """Gera o código do experimento treinando só os modelos pedidos.
+
+    As features de defasagem, quando pedidas, já vêm embutidas em ``X`` pelo
+    construtor do dataset (o alvo continua sendo a semana seguinte), então o
+    código não as recalcula — apenas treina os estimadores selecionados.
+    """
+    if list(modelos) == list(MODELOS_PADRAO) and defasagem == 0:
+        return CODIGO_EXPERIMENTO
+    linhas = "\n".join(f'    "{nome}": {_EXPRESSOES_ESTIMADOR[nome]},' for nome in modelos)
+    return CODIGO_EXPERIMENTO.replace(
+        '    "regressao_logistica": LogisticRegression(max_iter=1000, random_state=seed),\n'
+        '    "floresta_aleatoria": RandomForestClassifier(n_estimators=200, random_state=seed),\n'
+        '    "gradient_boosting": GradientBoostingClassifier(random_state=seed),\n',
+        linhas + "\n",
+    )
 
 
 @dataclass
@@ -152,7 +254,15 @@ class ExperimentRunner:
         from sklearn.model_selection import TimeSeriesSplit, cross_val_score
         from scipy import stats
 
-        real = build_real_dataset(topic, cache_dir=self.cache_dir, offline=self.offline)
+        # O desenho do experimentalista (``plan``) pede modelos e features
+        # específicos por tópico. O runner honra o pedido quando dá para mapeá-lo
+        # para estimadores reais; caso contrário, mantém a tríade padrão. Sem isso,
+        # tópicos distintos produziriam o mesmo experimento.
+        defasagem = _defasagem_do_desenho(plan)
+        modelos_cfg = _modelos_do_desenho(plan)
+        codigo = codigo or _codigo_do_desenho(modelos_cfg, defasagem)
+
+        real = build_real_dataset(topic, cache_dir=self.cache_dir, offline=self.offline, lags=defasagem)
         if real is None:
             raise RealDataUnavailableError(
                 f"Nenhuma fonte pública de observações reais para o tópico: {topic!r}. "
@@ -163,7 +273,7 @@ class ExperimentRunner:
         X_train, X_test, y_train, y_test = self._split_temporal(X, y)
 
         # Auto-debug: o código roda de fato e, se quebrar, é corrigido pelo LLM.
-        executado = self._run_experiment_code(codigo or CODIGO_EXPERIMENTO, X, y, meta, topic, hyp_id)
+        executado = self._run_experiment_code(codigo, X, y, meta, topic, hyp_id)
         if not executado.sucesso:
             return self._falha_apos_debug(hyp_id, topic, meta, executado, started)
 

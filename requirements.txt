@@ -23,6 +23,9 @@ python-dotenv>=1.0.0
 # scikit-image: textura (Haralick) e filtros; roda no pipeline principal.
 scikit-image>=0.22
 Pillow>=10.0.0
+# shapely: geometria da malha municipal do IBGE na agregação espacial
+# pixel->município do NDVI (integrations/satellite_ndvi.py).
+shapely>=2.0
 # rasterio: leitura de GeoTIFF do WMS do INPE. A série 1.5 exige Python >= 3.12;
 # fixamos <1.5 no Python 3.11, que ainda recebe rodas binárias na série 1.4.
 rasterio>=1.4,<1.5; python_version < "3.12"
@@ -33,3 +36,8 @@ rasterio>=1.4; python_version >= "3.12"
 #   pip install "torch>=2.2" "torchvision>=0.17" "geoai-py>=0.43"
 # O código detecta a ausência e usa apenas as features interpretáveis
 # (textura + cor/vegetação), que não dependem de torch.
+#
+# shap: importância de atributos do experimento dengue+NDVI e a figura
+# fig_shap.png do paper. Sem ele, o experimento roda e reporta
+# shap.disponivel=false, mas a figura não é gerada.
+#   pip install shap>=0.44

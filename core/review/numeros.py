@@ -52,16 +52,23 @@ _PADRAO_VERSAO = re.compile(
 _PADRAO_LIMITE_SUPERIOR = re.compile(r"(?:>=|≥|>|\bmaior que\b|\bacima de\b|\bsuperior a\b)\s*$", re.IGNORECASE)
 _PADRAO_LIMITE_INFERIOR = re.compile(r"(?:<=|≤|<|\bmenor que\b|\babaixo de\b|\binferior a\b)\s*$", re.IGNORECASE)
 
+# Vírgula decimal escapada do LaTeX ("0{,}235"), usada para não quebrar o número
+# na renderização. Sem tratá-la, o texto "0{,}235" vira dois tokens ("0" e "235")
+# e o "235" é acusado de não ter lastro, embora seja o mesmo 0,235 do dado.
+_PADRAO_VIRGULA_LATEX = re.compile(r"\{,\}|\{\.\}")
+
 
 def _remover_estrutura(manuscrito: str) -> str:
     """Remove numeração que não é afirmação sobre dados.
 
     Títulos numerados pelo próprio LLM ("### 3.1. Amostragem"), referências
-    cruzadas ("Seção 3.1") e versões de software ("Python 3.13.15") geram tokens
-    que parecem números de resultado, mas são estrutura do texto. Sem podá-los, o
-    conferidor acusa numeração de seção como se fosse dado sem lastro.
+    cruzadas ("Seção 3.1"), versões de software ("Python 3.13.15") e a vírgula
+    decimal escapada do LaTeX ("0{,}235") geram tokens que parecem números de
+    resultado, mas são estrutura do texto. Sem podá-los, o conferidor acusa
+    numeração de seção (ou a segunda metade de um decimal) como dado sem lastro.
     """
-    texto = _PADRAO_TITULO_NUMERADO.sub(r"\1", manuscrito)
+    texto = _PADRAO_VIRGULA_LATEX.sub(",", manuscrito)
+    texto = _PADRAO_TITULO_NUMERADO.sub(r"\1", texto)
     texto = _PADRAO_REFERENCIA_CRUZADA.sub("", texto)
     texto = _PADRAO_VERSAO.sub("", texto)
     return texto
