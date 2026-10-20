@@ -31,7 +31,7 @@ from typing import Any
 
 import numpy as np
 from PIL import Image
-from shapely.geometry import Point, shape
+from shapely.geometry import LineString, shape
 
 logger = logging.getLogger(__name__)
 
@@ -196,11 +196,7 @@ class ExtratorNDVI:
             lats = np.linspace(lat_max, lat_min, h, endpoint=False) + (lat_max - lat_min) / (2 * h)
             lons = np.linspace(lon_min, lon_max, w, endpoint=False) + (lon_max - lon_min) / (2 * w)
             for i, la in enumerate(lats):
-                xs = geom.intersection(
-                    __import__("shapely").geometry.LineString(
-                        [(lon_min, la), (lon_max, la)]
-                    )
-                )
+                xs = geom.intersection(LineString([(lon_min, la), (lon_max, la)]))
                 if xs.is_empty:
                     continue
                 intervalos: list[tuple[float, float]] = []
