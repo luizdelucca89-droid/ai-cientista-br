@@ -231,6 +231,60 @@ def _mock_analysis(prompt: str, seed: int) -> str:
     )
 
 
+def _mock_auto_debug(prompt: str, seed: int) -> str:
+    """Correção determinística do código do experimento.
+
+    O provider offline não raciocina sobre o traceback, então devolve o script de
+    referência do runner. É o que um LLM real faria para os erros previstos
+    (variável errada, import faltando, shape mismatch), e mantém o auto-debug
+    testável sem rede.
+    """
+    from core.experiments.runner import CODIGO_EXPERIMENTO
+
+    return CODIGO_EXPERIMENTO
+
+
+def _mock_rebuttal(prompt: str, seed: int) -> str:
+    """Parser determinístico de comentários de revisor.
+
+    Classifica por palavras-chave (re-run pede refazer o experimento; rewrite pede
+    reescrever seções) para que o fluxo de rebuttal funcione sem rede.
+    """
+    baixo = prompt.lower()
+    acoes: list[dict[str, Any]] = []
+    pedido_rerun = any(
+        p in baixo
+        for p in ("re-execute", "refaça", "refaca", "reexecut", "rode novamente", "nova métrica", "nova metrica", "adicione uma feature")
+    )
+    pedido_rewrite = any(
+        p in baixo
+        for p in ("reescreva", "rewrite", "clareza", "melhore a redação", "melhore a redacao", "reescrit")
+    )
+    if pedido_rerun:
+        acoes.append(
+            {
+                "tipo": "re-run",
+                "descricao": "Reexecutar o experimento com a métrica/feature solicitada pelo revisor.",
+                "secoes": ["resultados"],
+                "parametros": {"metrica": "f1_score"},
+            }
+        )
+    if pedido_rewrite or not acoes:
+        acoes.append(
+            {
+                "tipo": "rewrite",
+                "descricao": "Reescrever a seção de resultados com mais clareza metodológica.",
+                "secoes": ["resultados"],
+                "parametros": {},
+            }
+        )
+    payload = {
+        "acoes": acoes,
+        "resumo_geral": "Comentários convertidos em ações acionáveis pelo sistema.",
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
 def _mock_review(prompt: str, seed: int) -> str:
     """Parecer determinístico que varia com a seed, como um revisor real variaria.
 
@@ -424,6 +478,8 @@ _MOCK_BUILDERS: dict[str, Callable[[str, int], str]] = {
     "gap": _mock_gap,
     "experiment_plan": _mock_experiment_plan,
     "analysis": _mock_analysis,
+    "auto_debug": _mock_auto_debug,
+    "rebuttal": _mock_rebuttal,
     "review": _mock_review,
     "score": _mock_score,
     "compliance": _mock_compliance,

@@ -22,6 +22,7 @@ Honestidade é parte do projeto. Esta tabela diz exatamente o que o software faz
 | Revisão por pares | **Real.** Painel de 5 revisores independentes com meta-revisor e voto majoritário ordinal. |
 | Formatação ABNT | **Real.** Gera Markdown, PDF (ABNT) e LaTeX (`.tex` + `paper_latex.pdf` compilado com `pdflatex`). |
 | Base experimental | **Sempre real, com procedência.** Cada matriz vem de observações públicas baixadas ao vivo: InfoDengue (dengue), INPE/PRODES (desmatamento), IBGE/SIDRA PAM (agricultura) e IBGE/SIDRA ODS (educação). Os metadados registram `tipo: dados_reais`, a fonte, a URL e a data de coleta. **Não existe mais gerador sintético**: sem fonte pública para o tema, o runner levanta `RealDataUnavailableError` em vez de fabricar números. Um cache versionado (`data/dataset_cache/`) guarda as observações reais para replay offline determinístico. |
+| Modalidade imagem (satélite) | **Real.** Para temas como "desmatamento com imagens de satélite", o sistema baixa o mosaico temporal do PRODES no WMS público do TerraBrasilis/INPE e extrai um vetor de features (textura Haralick + cor/vegetação) da imagem real, concatenado ao painel tabular. Nenhum pixel é sintetizado: sem imagem real e sem cache, o código falha explicitamente. |
 | Fidelidade numérica | **Real.** Antes de fechar o ciclo, o sistema confere cada número do manuscrito contra os dados produzidos e reporta os que não têm lastro. |
 | Texto do artigo | Gerado pelo LLM escolhido. O provider `mock` produz texto estrutural, não prosa científica. |
 | Lattes | **Sem API pública.** O sistema declara a limitação e devolve um link de consulta manual; não simula dados. |
@@ -49,6 +50,9 @@ As técnicas abaixo foram portadas (ou reimplementadas) a partir dos originais.
 | Diagnóstico do ambiente (`doctor`) | v3 `agsci doctor` | `python main.py --doctor` — Python, dependências, saída, providers e fontes. |
 | Execução paralela de vários tópicos | v1 `--parallel` | `python main.py --topics-file ... --parallel N` — um processo por tópico. |
 | Artigo em LaTeX | v1 `--writeup latex` | `core/paper/latex.py` — gera `paper.tex` e compila `paper_latex.pdf` com `pdflatex`. |
+| Auto-debug do código do experimento | v3 (iterative debug) | `core/experiments/auto_debugger.py` — ao falhar, captura o `traceback`, pede ao LLM **apenas** o bloco corrigido e reexecuta até 3 vezes; esgotadas as tentativas, marca `status_experimento: "falha_apos_debug"` e segue o ciclo. |
+| Resposta a revisores (DRPG) | DRPG (Decompose–Retrieve–Plan–Generate) | `core/rebuttal_engine.py` — decompõe os comentários em ações tipadas, recupera os artefatos do ciclo, reexecuta ou reescreve e gera `resposta_revisores.md` com "Reviewer Comment → Our Response → Changes Made". |
+| Multimodal geoespacial | `opengeos/geoai` | `integrations/multimodal.py` + `integrations/multimodal_geo.py` — baixa imagens reais do mosaico do INPE e extrai textura/vegetação (via `rasterio`/`geoai` no caminho opcional) para concatenar ao painel tabular. |
 
 O que **não** foi portado, por depender de infraestrutura ou pressupostos que não
 se aplicam aqui: execução em contêiner Docker com agentes de código (v3),
@@ -78,6 +82,15 @@ sudo apt-get install texlive-latex-base texlive-latex-recommended texlive-lang-p
 
 Sem o `pdflatex`, o ciclo continua normalmente e grava apenas `paper.tex`; o
 `paper.pdf` (ABNT) é sempre gerado via `fpdf2`.
+
+Para o caminho multimodal geoespacial com `geoai` (opcional): o `rasterio` já vem
+no `requirements.txt`, mas `geoai-py` e `torch` são extras pesados e ficam de
+fora por padrão. Sem eles, a modalidade imagem usa apenas as features
+interpretáveis (textura + cor/vegetação) e continua funcionando.
+
+```bash
+pip install "geoai-py>=0.43" "torch>=2.2" "torchvision>=0.17"  # opcional
+```
 
 ## Uso
 
@@ -142,10 +155,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Três abas:
+Quatro abas:
 
 - **🔬 Nova pesquisa** — escolhe um tema com fonte pública conhecida (dengue, desmatamento, agricultura, educação), seleciona o provider de LLM e roda o ciclo. Ao final, mostra as métricas reais por modelo, o gráfico interativo de F1/AUC e botões para baixar `paper.pdf`, `paper.tex`, `paper.md` e o pacote de submissão.
 - **📚 Histórico** — lê a memória SQLite, lista os ciclos com data, tópico, status, score e a fonte de dados real, e permite baixar os artefatos de qualquer ciclo anterior.
+- **🔄 Revisão e Rebuttal** — cola os comentários de um revisor, o motor DRPG decompõe em ações, reexecuta ou reescreve o que for preciso e devolve `resposta_revisores.md` junto do `paper.tex` atualizado.
 - **⚙️ Configurações** — grava `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `SCIELO_TOKEN` e `ARXIV_USERNAME` em `.env` (que está no `.gitignore`).
 
 Se o tema não tiver fonte pública, o ciclo falha com `RealDataUnavailableError` e a UI exibe o motivo — a interface não contorna a regra de zero dados sintéticos.
@@ -277,10 +291,14 @@ core/
                             redator, validador, integrador de dados
   review/                   Painel de N revisores + meta-revisor
                             fidelidade numérica (numeros.py)
-  experiments/              Datasets reais (InfoDengue) + execução e estatística
+  experiments/              Datasets reais + runner + auto-debug
+                            (auto_debugger.py) + estatística
+  rebuttal_engine.py        Resposta a revisores no padrão DRPG
   paper/                    Formatação ABNT + PDF + LaTeX
 integrations/               Crossref, SciELO, OpenAlex, Banco Central,
                             IBGE, InfoDengue, Lattes
+  multimodal.py             Features de imagens reais do INPE (WMS)
+  multimodal_geo.py         Variante geoespacial (rasterio/geoai, opcional)
 llm_providers/              mock, openai_compatible, selenium (bypass/)
 examples/                   Três ciclos completos executáveis
 tests/                      Suíte pytest (offline + marcados como network)
@@ -312,8 +330,11 @@ pytest -q                    # inclui os testes que acessam APIs públicas
 ```
 
 Os testes exercitam código real: SQLite em disco, treino de modelos,
-estatística, geração de PDF, LaTeX, painel de revisão, execução em lote e um
-servidor HTTP local que valida o cliente compatível com OpenAI.
+estatística, geração de PDF, LaTeX, painel de revisão, execução em lote, o
+auto-debug do experimento (com erro de sintaxe proposital), o motor de rebuttal
+DRPG e a extração de features de imagens reais do INPE — além de um servidor HTTP
+local que valida o cliente compatível com OpenAI. Os testes marcados com
+`network` baixam imagens de satélite de verdade do WMS do TerraBrasilis.
 
 ---
 
