@@ -34,7 +34,18 @@ _PADRAO_REFERENCIA_CRUZADA = re.compile(
 )
 
 # Versões de software ("Python 3.13.15"), que não são medições.
-_PADRAO_VERSAO = re.compile(r"[A-Za-z]+\s+\d+(?:\.\d+){1,3}")
+#
+# O prefixo precisa ser um nome de software conhecido. Um padrão genérico
+# (``[A-Za-z]+\s+\d+\.\d+``) apagava qualquer decimal em inglês: "AUC of 0.810"
+# virava "AUC " e o número escapava da conferência de fidelidade. Como o texto
+# em português usa vírgula, o defeito só aparecia no abstract em inglês.
+_PADRAO_VERSAO = re.compile(
+    r"(?:\b(?:python|java|matlab|julia|numpy|scipy|pandas|scikit-?learn|sklearn|"
+    r"tensorflow|pytorch|torch|xgboost|lightgbm|catboost|statsmodels|geopandas|"
+    r"streamlit|vers[ãa]o|version)\s+|\bv)"
+    r"\d+(?:\.\d+){1,3}",
+    re.IGNORECASE,
+)
 
 # Operadores de comparação e locuções equivalentes que transformam o número
 # seguinte em um limite, não em uma medição exata.
