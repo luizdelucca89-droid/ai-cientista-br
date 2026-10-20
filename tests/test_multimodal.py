@@ -9,6 +9,7 @@ disponível, o código deve falhar explicitamente.
 from __future__ import annotations
 
 import base64
+import importlib.util
 import io
 import json
 import sys
@@ -212,6 +213,8 @@ def test_features_do_cache_offline(cache_com_imagem):
 @pytest.mark.network
 def test_cnn_resnet18_dimensao(tmp_path):
     """O embedding do ResNet18 (512-d) é acrescentado quando pedido."""
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("torch/torchvision não instalados (extra opcional).")
     vetor, meta = extract_satellite_features_detalhado(
         "RO", 2021, cache_dir=tmp_path, usar_cnn=True
     )
