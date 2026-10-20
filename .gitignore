@@ -22,3 +22,5 @@ chromedriver
 
 # Painel do enxame (artefato de execução)
 resultado_swarm.txt
+data/dataset_cache/
+pacote_open_science/
