@@ -321,6 +321,99 @@ Destaques: `nvidia/nemotron-3-ultra-550b-a55b` (raciocínio, 5 s),
 `gemini-flash-latest` (redação longa). Reprovados por cota (429) não são falha
 do modelo — anote o motivo ao reexecutar.
 
+### 🧠 Roteamento Inteligente de Modelos (MoE)
+
+Cada agente já declara o tipo do seu trabalho (`task=`), mas isso era ignorado:
+todo mundo usava o mesmo modelo, na mesma ordem. Agora o `LLMClient` lê o
+catálogo validado em `config.modelos.json` e escolhe o melhor modelo **gratuito**
+para cada tarefa — como um mistura-de-especialistas (MoE).
+
+| Categoria | Tarefas | Primeira escolha | Por quê |
+|---|---|---|---|
+| `raciocinio` | gap, hypotheses, novelty, review | `nvidia/nemotron-3-ultra-550b-a55b` | 550B MoE, forte em planejamento; 5 s |
+| `codigo` | experiment_plan, analysis, auto_debug | `mistral/codestral-latest` | especialista em código; 1,1 s |
+| `redacao` | section, translate, rebuttal | `gemini-flash-latest` | contexto longo e prosa PT-BR |
+| `alto_volume` | score, compliance, voting | `mistral/ministral-8b-latest` | rápido e barato |
+| `multimodal` | satellite_features, chart_reading | `nvidia/nemotron-3.5-super-vl:free` | aceita imagem |
+
+**Fallback em cascata.** A ordem é estrita e tem três níveis:
+
+```
+1. Modelo específico da tarefa   (ex.: codestral-latest para código)
+2. Alternativa da mesma tarefa   (ex.: voxtral-small-latest, nemotron-lightning)
+3. 🃏 Coringa: gemini-flash-latest (GEMINI_API_KEY) — a última API real
+4. mock                          (só se o coringa não estiver configurado ou também falhar)
+```
+
+O nível 3 é o seguro contra um dia ruim de cota: se **todos** os modelos da
+categoria estouram, o coringa ainda devolve texto científico real, em vez de o
+pipeline cair no mock (que produz estrutura, não ciência). O mock fica restrito
+a CI e emergência total — sem ele, um teste offline ou uma queda geral de rede
+derrubaria a execução inteira.
+
+Se a `GEMINI_API_KEY` não estiver definida, o nível 3 é pulado e a cadeia
+termina no mock, com um aviso explícito no log:
+
+```
+[LLM Router] Fallback acionado: usando GEMINI_API_KEY como coringa para task=hypotheses
+[LLM Router] task=experiment_plan: mistral/codestral-latest falhou (HTTP 429); próximo da cascata
+```
+
+Cada modelo é tentado **uma vez** antes de descer a cascata — falha transitória
+(429, 5xx, timeout) não gasta backoff no mesmo modelo.
+
+**`max_tokens` por tarefa.** O benchmark mostrou que 512 tokens truncavam
+modelos de raciocínio (gastam o orçamento em chain-of-thought antes do JSON).
+Raciocínio e código recebem 4096; redação e alto volume, 2048. Tarefas com
+contrato JSON estrito também enviam `response_format={"type": "json_object"}`.
+
+O log mostra a decisão:
+
+```
+[LLM Router] task=hypotheses → nvidia/nemotron-3-ultra-550b-a55b (tempo: 5.0s)
+[LLM Router] task=experiment_plan: nvidia/nemotron-3-ultra-550b-a55b falhou (HTTP 429); próximo da cascata
+```
+
+Sem `config.modelos.json`, ou com `--provider mock`, o roteador fica desligado e
+o cliente usa a cadeia única de antes. Para desligar explicitamente, aponte
+`llm.catalogo_modelos` para um caminho inexistente.
+
+**Onde ficam as chaves.** Em `.env` na raiz (que está no `.gitignore`). Copie o
+modelo e preencha:
+
+```bash
+cp .env.example .env
+# edite .env e ponha GEMINI_API_KEY=sua_chave
+```
+
+O `.env` é carregado automaticamente na importação de `llm_providers` (com
+`override=False`: uma variável já exportada no shell vence o arquivo, para não
+mascarar a configuração de CI/produção). Valores de exemplo como
+`sua_chave_real_aqui` são tratados como ausentes, então um `.env` recém-copiado
+não finge ter chave nem gasta uma tentativa com 401.
+
+**Os nomes das variáveis importam.** O catálogo lê exatamente estes nomes — um
+nome diferente deixa o provider indisponível em silêncio e a categoria cai no
+coringa:
+
+| Variável | Modelos | Endpoint |
+|---|---|---|
+| `GEMINI_API_KEY` | 3 (inclui o coringa) | Google AI Studio |
+| `NVIDIA_API_KEY` | 7 | `integrate.api.nvidia.com` (NIM) |
+| `OPENROUTER_API_KEY` | 5 | `openrouter.ai` |
+| `MISTRAL_API_KEY` | 5 | `api.mistral.ai` |
+
+Para conferir o que o roteador vai usar antes de rodar o pipeline:
+
+```bash
+python main.py --doctor --no-network
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok)
+# [OK  ] roteamento por tarefa (6 categorias; coringa ok; chaves ausentes: NVIDIA_API_KEY)
+```
+
+Só `GEMINI_API_KEY` é obrigatória: sem as outras, as categorias sem chave usam o
+coringa (que atende qualquer tarefa), em vez do mock.
+
 ---
 
 ## Arquitetura

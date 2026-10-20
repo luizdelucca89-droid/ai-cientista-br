@@ -1,0 +1,28 @@
+22:22:48 | INFO    | llm_providers | Roteamento por tarefa ativo: 6 categorias (24 modelos)
+=== LOG DO ROTEADOR MoE ===
+roteador ativo: True
+
+22:22:51 | INFO    | llm_providers | [LLM Router] task=gap → nvidia/nemotron-3-ultra-550b-a55b (tempo: 3.0s)
+  >> task=gap -> provider=nvidia/nemotron-3-ultra-550b-a55b
+
+22:23:04 | INFO    | llm_providers | [LLM Router] task=hypotheses → nvidia/nemotron-3-ultra-550b-a55b (tempo: 12.9s)
+  >> task=hypotheses -> provider=nvidia/nemotron-3-ultra-550b-a55b
+
+22:23:05 | INFO    | llm_providers | [LLM Router] task=experiment_plan → mistral/codestral-latest (tempo: 1.0s)
+  >> task=experiment_plan -> provider=mistral/codestral-latest
+
+22:23:05 | INFO    | llm_providers | [LLM Router] task=auto_debug → mistral/codestral-latest (tempo: 0.5s)
+  >> task=auto_debug -> provider=mistral/codestral-latest
+
+22:23:34 | INFO    | llm_providers | [LLM Router] task=section → gemini-flash-latest (tempo: 29.1s)
+  >> task=section -> provider=gemini-flash-latest
+
+22:23:43 | INFO    | llm_providers | [LLM Router] task=review → nvidia/nemotron-3-ultra-550b-a55b (tempo: 8.7s)
+  >> task=review -> provider=nvidia/nemotron-3-ultra-550b-a55b
+
+22:23:44 | INFO    | llm_providers | [LLM Router] task=voting → mistral/ministral-8b-latest (tempo: 0.6s)
+  >> task=voting -> provider=mistral/ministral-8b-latest
+
+22:23:45 | INFO    | llm_providers | [LLM Router] task=satellite_features → nvidia/nemotron-3.5-super-vl:free (tempo: 1.9s)
+  >> task=satellite_features -> provider=nvidia/nemotron-3.5-super-vl:free
+

@@ -134,6 +134,62 @@ class Doctor:
             client.close()
         except Exception as exc:  # noqa: BLE001 - diagnóstico não deve quebrar
             self.checks.append(Check("providers de LLM disponíveis", False, str(exc)))
+        self._check_router()
+
+    def _check_router(self) -> None:
+        """Mostra o que o roteador por tarefa usaria, e o que falta configurar.
+
+        Sem esta checagem, um nome de variável errado no ``.env`` (ex.:
+        ``NVIDIA_NIM_API_KEY`` em vez de ``NVIDIA_API_KEY``) é invisível: o
+        provider fica indisponível em silêncio, a categoria cai para o coringa e
+        o usuário só descobre ao ver o Gemini sendo usado no lugar do modelo
+        específico — ou, pior, ao ver o mock no paper final.
+        """
+        try:
+            import json as _json
+
+            from core.utils import ROOT as _ROOT
+            from llm_providers import build_task_router
+
+            caminho = _ROOT / "config.modelos.json"
+            if not caminho.exists():
+                self.checks.append(
+                    Check("roteamento por tarefa", False, "config.modelos.json ausente", critical=False)
+                )
+                return
+            catalogo = _json.loads(caminho.read_text(encoding="utf-8"))
+            router = build_task_router(catalogo, {})
+            if router is None:
+                self.checks.append(
+                    Check("roteamento por tarefa", False, "catálogo vazio", critical=False)
+                )
+                return
+
+            faltando = sorted(
+                {
+                    p.api_key_env
+                    for lista in router.rotas.values()
+                    for p in lista
+                    if p.api_key_env and not p.available()
+                }
+            )
+            tem_coringa = bool(router.coringa and router.coringa.available())
+            detalhe = (
+                f"{len(router.rotas)} categorias; coringa "
+                f"{'ok' if tem_coringa else 'AUSENTE (cadeia termina no mock)'}"
+            )
+            if faltando:
+                detalhe += "; chaves ausentes: " + ", ".join(faltando)
+            self.checks.append(
+                Check(
+                    "roteamento por tarefa",
+                    router.ativo,
+                    detalhe,
+                    critical=False,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - diagnóstico não deve quebrar
+            self.checks.append(Check("roteamento por tarefa", False, str(exc), critical=False))
 
     def _check_sources(self, timeout: float) -> None:
         for name, url in SOURCES:

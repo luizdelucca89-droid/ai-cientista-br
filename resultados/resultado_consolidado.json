@@ -1,0 +1,445 @@
+{
+  "principal": {
+    "seed": 42,
+    "n_bootstrap": 1000,
+    "n_folds": 5,
+    "split": "temporal (TimeSeriesSplit expansivo + holdout cronológico)",
+    "n_treino": 986,
+    "n_teste": 247,
+    "n_positivos_teste": 79,
+    "metricas": {
+      "A": {
+        "nome": "A (baseline)",
+        "descricao": "Regressão Logística, atributos tabulares",
+        "n_features": 8,
+        "f1": 0.9433962264150944,
+        "auc": 0.9929927667269439,
+        "precision": 0.9375,
+        "recall": 0.9493670886075949,
+        "ic95_f1": [
+          0.899199275866871,
+          0.9761974789915966
+        ],
+        "f1_folds": [
+          0.4,
+          0.9186602870813397,
+          0.8333333333333334,
+          0.9734513274336283,
+          0.9666666666666667
+        ],
+        "f1_folds_media": 0.8184223229029935,
+        "f1_folds_std": 0.2151081614917908
+      },
+      "B": {
+        "nome": "B (proposta)",
+        "descricao": "Gradient Boosting, tabulares + satélite (NDVI)",
+        "n_features": 12,
+        "f1": 0.9615384615384616,
+        "auc": 0.9955545509342977,
+        "precision": 0.974025974025974,
+        "recall": 0.9493670886075949,
+        "ic95_f1": [
+          0.9253731343283582,
+          0.9876543209876543
+        ],
+        "f1_folds": [
+          0.47058823529411764,
+          0.9428571428571428,
+          0.8524590163934426,
+          0.972972972972973,
+          0.9586776859504132
+        ],
+        "f1_folds_media": 0.839511010693618,
+        "f1_folds_std": 0.18919031685604215
+      },
+      "C": {
+        "nome": "C (ablação)",
+        "descricao": "Gradient Boosting, apenas tabulares",
+        "n_features": 8,
+        "f1": 0.9554140127388535,
+        "auc": 0.9962326702833032,
+        "precision": 0.9615384615384616,
+        "recall": 0.9493670886075949,
+        "ic95_f1": [
+          0.9171841825902336,
+          0.9873457278481013
+        ],
+        "f1_folds": [
+          0.5,
+          0.9428571428571428,
+          0.8709677419354839,
+          0.9634146341463414,
+          0.9421487603305785
+        ],
+        "f1_folds_media": 0.8438776558539093,
+        "f1_folds_std": 0.17477354088148464
+      }
+    },
+    "testes": {
+      "B vs A": {
+        "wilcoxon_stat": 74249.5,
+        "p_valor": 1.2760712201804215e-81,
+        "delta_f1_medio": 0.017728076991347486,
+        "ic95_delta": [
+          -0.02670813460984957,
+          0.06741390513320333
+        ],
+        "cohen_d": 0.7216743307312894
+      },
+      "B vs C": {
+        "wilcoxon_stat": 187157.5,
+        "p_valor": 3.1728518431708903e-11,
+        "delta_f1_medio": 0.004943222092209803,
+        "ic95_delta": [
+          -0.04164508244564418,
+          0.05014231727497899
+        ],
+        "cohen_d": 0.21247177621832333
+      }
+    },
+    "hipotese": {
+      "H0": "adição de satélite NÃO melhora (ΔF1 ≤ 0.02, p ≥ 0.05)",
+      "H1": "adição de satélite melhora (ΔF1 > 0.02, p < 0.05)",
+      "teste_principal": "B vs C (isola o satélite: mesmo algoritmo, com e sem NDVI)",
+      "delta_f1_observado": 0.017728076991347486,
+      "delta_f1_isolado_satelite": 0.004943222092209803,
+      "p_valor_observado": 1.2760712201804215e-81,
+      "ic95_delta": [
+        -0.02670813460984957,
+        0.06741390513320333
+      ],
+      "ic95_inclui_zero": true,
+      "limiar_delta": 0.02,
+      "alpha": 0.05,
+      "decisao": "não rejeitar H0 (resultado nulo)",
+      "observacao_estatistica": "O IC 95% do ΔF1 inclui zero, então a direção do efeito não está firmemente estabelecida, apesar do p-valor de Wilcoxon. Wilcoxon testa a mediana das diferenças pareadas (sensível ao sinal consistente); o IC bootstrap testa a magnitude média. Com efeito pequeno e variância alta os dois divergem, e o resultado prático é de melhora não confiável."
+    },
+    "nomes_features": [
+      "tempmed",
+      "umidmed",
+      "casos",
+      "casos_est",
+      "p_inc100k",
+      "Rt",
+      "nivel",
+      "nivel_inc",
+      "ndvi_medio",
+      "ndvi_std",
+      "ndvi_min",
+      "ndvi_max"
+    ],
+    "proveniencia_dados": {
+      "origem": "InfoDengue (Fiocruz/FGV) + NASA GIBS/MODIS NDVI (agregado por município do IBGE)",
+      "fonte_url": "https://info.dengue.mat.br/api/alertcity | https://gibs.earthdata.nasa.gov",
+      "tipo": "dados_reais",
+      "coletado_em": "2026-10-20T22:16:48",
+      "n_amostras": 1233,
+      "n_variaveis": 12,
+      "n_municipios": 8,
+      "intervalo_semanas": {
+        "inicio": 202201,
+        "fim": 202451
+      },
+      "split": "temporal",
+      "defasagem_composto_dias": 16,
+      "fonte_satelite": {
+        "camada": "MODIS_Terra_L3_NDVI_16Day",
+        "servico": "NASA GIBS WMTS (publico, sem chave)",
+        "malha_municipal": "IBGE API v3 /malhas/municipios (GeoJSON)",
+        "colormap": "https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS_L3_NDVI.xml",
+        "agregacao_espacial": "pixels do tile filtrados pela fronteira real do municipio",
+        "agregacao_temporal": "composto de 16 dias encerrado antes da semana epidemiologica"
+      }
+    },
+    "shap": {
+      "disponivel": true,
+      "importancias": {
+        "nivel": 1.6924299903746736,
+        "nivel_inc": 1.537502836925419,
+        "Rt": 1.2052776943745684,
+        "casos": 0.38952254141744536,
+        "casos_est": 0.2426233924224439,
+        "p_inc100k": 0.1896837375844475,
+        "ndvi_max": 0.16082199705769915,
+        "ndvi_std": 0.08097065529260213,
+        "tempmed": 0.07198049702471365,
+        "ndvi_min": 0.04530115152135303,
+        "umidmed": 0.0358527139325483,
+        "ndvi_medio": 0.012680033037704158
+      },
+      "ranking": [
+        "nivel",
+        "nivel_inc",
+        "Rt",
+        "casos",
+        "casos_est",
+        "p_inc100k",
+        "ndvi_max",
+        "ndvi_std",
+        "tempmed",
+        "ndvi_min",
+        "umidmed",
+        "ndvi_medio"
+      ],
+      "n_amostras_explicadas": 247
+    }
+  },
+  "sensibilidade": {
+    "seed": 42,
+    "n_bootstrap": 1000,
+    "n_folds": 5,
+    "split": "temporal (TimeSeriesSplit expansivo + holdout cronológico)",
+    "n_treino": 986,
+    "n_teste": 247,
+    "n_positivos_teste": 79,
+    "metricas": {
+      "A": {
+        "nome": "A (baseline)",
+        "descricao": "Regressão Logística, atributos tabulares",
+        "n_features": 6,
+        "f1": 0.65,
+        "auc": 0.7811934900542495,
+        "precision": 0.9512195121951219,
+        "recall": 0.4936708860759494,
+        "ic95_f1": [
+          0.5409725299069562,
+          0.7457694377185903
+        ],
+        "f1_folds": [
+          0.0,
+          0.6347305389221557,
+          0.56,
+          0.8384879725085911,
+          0.6304347826086957
+        ],
+        "f1_folds_media": 0.5327306588078885,
+        "f1_folds_std": 0.2821287571430523
+      },
+      "B": {
+        "nome": "B (proposta)",
+        "descricao": "Gradient Boosting, tabulares + satélite (NDVI)",
+        "n_features": 10,
+        "f1": 0.6962962962962963,
+        "auc": 0.871308016877637,
+        "precision": 0.8392857142857143,
+        "recall": 0.5949367088607594,
+        "ic95_f1": [
+          0.6049159663865545,
+          0.7761243126472899
+        ],
+        "f1_folds": [
+          0.26666666666666666,
+          0.7303370786516854,
+          0.5357142857142857,
+          0.8961038961038961,
+          0.75
+        ],
+        "f1_folds_media": 0.6357643854273067,
+        "f1_folds_std": 0.21726186007062231
+      },
+      "C": {
+        "nome": "C (ablação)",
+        "descricao": "Gradient Boosting, apenas tabulares",
+        "n_features": 6,
+        "f1": 0.7424242424242424,
+        "auc": 0.9174954792043399,
+        "precision": 0.9245283018867925,
+        "recall": 0.620253164556962,
+        "ic95_f1": [
+          0.6507936507936508,
+          0.822583504918783
+        ],
+        "f1_folds": [
+          0.43478260869565216,
+          0.7471264367816092,
+          0.5423728813559322,
+          0.898360655737705,
+          0.7476635514018691
+        ],
+        "f1_folds_media": 0.6740612267945536,
+        "f1_folds_std": 0.16471923890423884
+      }
+    },
+    "testes": {
+      "B vs A": {
+        "wilcoxon_stat": 81839.5,
+        "p_valor": 1.8892503121821247e-75,
+        "delta_f1_medio": 0.04573522711128818,
+        "ic95_delta": [
+          -0.07790916760404948,
+          0.17832073494325149
+        ],
+        "cohen_d": 0.6883130864004785
+      },
+      "B vs C": {
+        "wilcoxon_stat": 67151.0,
+        "p_valor": 3.8588904622479044e-89,
+        "delta_f1_medio": -0.04826833824440685,
+        "ic95_delta": [
+          -0.16487657657657667,
+          0.07942767960273645
+        ],
+        "cohen_d": -0.7830454753993594
+      }
+    },
+    "hipotese": {
+      "H0": "adição de satélite NÃO melhora (ΔF1 ≤ 0.02, p ≥ 0.05)",
+      "H1": "adição de satélite melhora (ΔF1 > 0.02, p < 0.05)",
+      "teste_principal": "B vs C (isola o satélite: mesmo algoritmo, com e sem NDVI)",
+      "delta_f1_observado": 0.04573522711128818,
+      "delta_f1_isolado_satelite": -0.04826833824440685,
+      "p_valor_observado": 1.8892503121821247e-75,
+      "ic95_delta": [
+        -0.07790916760404948,
+        0.17832073494325149
+      ],
+      "ic95_inclui_zero": true,
+      "limiar_delta": 0.02,
+      "alpha": 0.05,
+      "decisao": "rejeitar H0 (favorece H1)",
+      "observacao_estatistica": "O IC 95% do ΔF1 inclui zero, então a direção do efeito não está firmemente estabelecida, apesar do p-valor de Wilcoxon. Wilcoxon testa a mediana das diferenças pareadas (sensível ao sinal consistente); o IC bootstrap testa a magnitude média. Com efeito pequeno e variância alta os dois divergem, e o resultado prático é de melhora não confiável."
+    },
+    "nomes_features": [
+      "tempmed",
+      "umidmed",
+      "casos",
+      "casos_est",
+      "p_inc100k",
+      "Rt",
+      "ndvi_medio",
+      "ndvi_std",
+      "ndvi_min",
+      "ndvi_max"
+    ],
+    "proveniencia_dados": {
+      "origem": "InfoDengue (Fiocruz/FGV) + NASA GIBS/MODIS NDVI (agregado por município do IBGE)",
+      "fonte_url": "https://info.dengue.mat.br/api/alertcity | https://gibs.earthdata.nasa.gov",
+      "tipo": "dados_reais",
+      "coletado_em": "2026-10-20T22:16:48",
+      "n_amostras": 1233,
+      "n_variaveis": 12,
+      "n_municipios": 8,
+      "intervalo_semanas": {
+        "inicio": 202201,
+        "fim": 202451
+      },
+      "split": "temporal",
+      "defasagem_composto_dias": 16,
+      "fonte_satelite": {
+        "camada": "MODIS_Terra_L3_NDVI_16Day",
+        "servico": "NASA GIBS WMTS (publico, sem chave)",
+        "malha_municipal": "IBGE API v3 /malhas/municipios (GeoJSON)",
+        "colormap": "https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS_L3_NDVI.xml",
+        "agregacao_espacial": "pixels do tile filtrados pela fronteira real do municipio",
+        "agregacao_temporal": "composto de 16 dias encerrado antes da semana epidemiologica"
+      }
+    },
+    "shap": {
+      "disponivel": true,
+      "importancias": {
+        "Rt": 0.8706249222000528,
+        "casos_est": 0.8665530420095755,
+        "p_inc100k": 0.8617772383253597,
+        "casos": 0.6404325422499287,
+        "ndvi_std": 0.37359921280313374,
+        "tempmed": 0.28307144850734783,
+        "ndvi_max": 0.2683388904901604,
+        "umidmed": 0.23274605937817228,
+        "ndvi_medio": 0.11496061842076394,
+        "ndvi_min": 0.057767658777044484
+      },
+      "ranking": [
+        "Rt",
+        "casos_est",
+        "p_inc100k",
+        "casos",
+        "ndvi_std",
+        "tempmed",
+        "ndvi_max",
+        "umidmed",
+        "ndvi_medio",
+        "ndvi_min"
+      ],
+      "n_amostras_explicadas": 247
+    }
+  },
+  "figuras": {
+    "roc": "resultados/figuras/fig_roc.png",
+    "shap": "resultados/figuras/fig_shap.png"
+  },
+  "proveniencia": {
+    "origem": "InfoDengue (Fiocruz/FGV) + NASA GIBS/MODIS NDVI (agregado por município do IBGE)",
+    "fonte_url": "https://info.dengue.mat.br/api/alertcity | https://gibs.earthdata.nasa.gov",
+    "tipo": "dados_reais",
+    "coletado_em": "2026-10-20T22:16:48",
+    "n_amostras": 1233,
+    "n_variaveis": 12,
+    "variaveis": [
+      "tempmed",
+      "umidmed",
+      "casos",
+      "casos_est",
+      "p_inc100k",
+      "Rt",
+      "nivel",
+      "nivel_inc",
+      "ndvi_medio",
+      "ndvi_std",
+      "ndvi_min",
+      "ndvi_max"
+    ],
+    "variaveis_tabulares": [
+      "tempmed",
+      "umidmed",
+      "casos",
+      "casos_est",
+      "p_inc100k",
+      "Rt",
+      "nivel",
+      "nivel_inc"
+    ],
+    "variaveis_satelite": [
+      "ndvi_medio",
+      "ndvi_std",
+      "ndvi_min",
+      "ndvi_max"
+    ],
+    "alvo": "nivel da proxima semana >= 3 (surto)",
+    "balanceamento": {
+      "positivos": 430,
+      "negativos": 803
+    },
+    "municipios": [
+      "Belo Horizonte",
+      "Curitiba",
+      "Goiânia",
+      "Manaus",
+      "Recife",
+      "Rio de Janeiro",
+      "Salvador",
+      "São Paulo"
+    ],
+    "n_municipios": 8,
+    "anos": [
+      2022,
+      2023,
+      2024
+    ],
+    "intervalo_semanas": {
+      "inicio": 202201,
+      "fim": 202451
+    },
+    "descartadas_sem_ndvi": 0,
+    "split": "temporal",
+    "split_index": 986,
+    "defasagem_composto_dias": 16,
+    "fonte_satelite": {
+      "camada": "MODIS_Terra_L3_NDVI_16Day",
+      "servico": "NASA GIBS WMTS (publico, sem chave)",
+      "malha_municipal": "IBGE API v3 /malhas/municipios (GeoJSON)",
+      "colormap": "https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS_L3_NDVI.xml",
+      "agregacao_espacial": "pixels do tile filtrados pela fronteira real do municipio",
+      "agregacao_temporal": "composto de 16 dias encerrado antes da semana epidemiologica"
+    }
+  }
+}

@@ -1,0 +1,222 @@
+[
+  {
+    "doi": "10.1371/journal.pntd.0005973",
+    "titulo": "Developing a dengue forecast model using machine learning: A case study in China",
+    "autores": "Guo, Pi; Liu, Tao; Zhang, Qin; Wang, Li; Xiao, Jianpeng; Zhang, Qingying",
+    "ano": 2017,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "volume": "11",
+    "pagina": "e0005973",
+    "url": "https://doi.org/10.1371/journal.pntd.0005973",
+    "citacoes": 219
+  },
+  {
+    "doi": "10.1073/pnas.1909865116",
+    "titulo": "An open challenge to advance probabilistic forecasting for dengue epidemics",
+    "autores": "Johansson, Michael A.; Apfeldorf, Karyn M.; Dobson, Scott; Devita, Jason; Buczak, Anna L.; Baugher, Benjamin",
+    "ano": 2019,
+    "periodico": "Proceedings of the National Academy of Sciences",
+    "volume": "116",
+    "pagina": "24268-24274",
+    "url": "https://doi.org/10.1073/pnas.1909865116",
+    "citacoes": 215
+  },
+  {
+    "doi": "10.1371/journal.pntd.0008056",
+    "titulo": "Machine learning and dengue forecasting: Comparing random forests and artificial neural networks for predicting dengue burden at national and sub-national scales in Colombia",
+    "autores": "Zhao, Naizhuo; Charland, Katia; Carabali, Mabel; Nsoesie, Elaine O.; Maheu-Giroux, Mathieu; Rees, Erin",
+    "ano": 2020,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "volume": "14",
+    "pagina": "e0008056",
+    "url": "https://doi.org/10.1371/journal.pntd.0008056",
+    "citacoes": 113
+  },
+  {
+    "doi": "10.1038/srep33707",
+    "titulo": "Evaluating the performance of infectious disease forecasts: A comparison of climate-driven and seasonal dengue forecasts for Mexico",
+    "autores": "Johansson, Michael A.; Reich, Nicholas G.; Hota, Aditi; Brownstein, John S.; Santillana, Mauricio",
+    "ano": 2016,
+    "periodico": "Scientific Reports",
+    "volume": "6",
+    "pagina": null,
+    "url": "https://doi.org/10.1038/srep33707",
+    "citacoes": 110
+  },
+  {
+    "doi": "10.1016/j.physa.2019.121266",
+    "titulo": "Forecasting dengue epidemics using a hybrid methodology",
+    "autores": "Chakraborty, Tanujit; Chattopadhyay, Swarup; Ghosh, Indrajit",
+    "ano": 2019,
+    "periodico": "Physica A: Statistical Mechanics and its Applications",
+    "volume": "527",
+    "pagina": "121266",
+    "url": "https://doi.org/10.1016/j.physa.2019.121266",
+    "citacoes": 99
+  },
+  {
+    "doi": "10.1371/journal.pntd.0005729",
+    "titulo": "Dengue prediction by the web: Tweets are a useful tool for estimating and forecasting Dengue at country and city level",
+    "autores": "Marques-Toledo, Cecilia de Almeida; Degener, Carolin Marlen; Vinhal, Livia; Coelho, Giovanini; Meira, Wagner; Codeço, Claudia Torres",
+    "ano": 2017,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "volume": "11",
+    "pagina": "e0005729",
+    "url": "https://doi.org/10.1371/journal.pntd.0005729",
+    "citacoes": 86
+  },
+  {
+    "doi": "10.1371/journal.pntd.0010509",
+    "titulo": "Deep learning models for forecasting dengue fever based on climate data in Vietnam",
+    "autores": "Nguyen, Van-Hau; Tuyet-Hanh, Tran Thi; Mulhall, James; Minh, Hoang Van; Duong, Trung Q.; Chien, Nguyen Van",
+    "ano": 2022,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "volume": "16",
+    "pagina": "e0010509",
+    "url": "https://doi.org/10.1371/journal.pntd.0010509",
+    "citacoes": 101
+  },
+  {
+    "doi": "10.3390/ijerph17020453",
+    "titulo": "Forecast of Dengue Cases in 20 Chinese Cities Based on the Deep Learning Method",
+    "autores": "Xu, Jiucheng; Xu, Keqiang; Li, Zhichao; Meng, Fengxia; Tu, Taotian; Xu, Lei",
+    "ano": 2020,
+    "periodico": "International Journal of Environmental Research and Public Health",
+    "volume": "17",
+    "pagina": "453",
+    "url": "https://doi.org/10.3390/ijerph17020453",
+    "citacoes": 80
+  },
+  {
+    "doi": "10.1098/rsif.2016.0410",
+    "titulo": "Superensemble forecasts of dengue outbreaks",
+    "autores": "Yamana, Teresa K.; Kandula, Sasikiran; Shaman, Jeffrey",
+    "ano": 2016,
+    "periodico": "Journal of The Royal Society Interface",
+    "volume": "13",
+    "pagina": null,
+    "url": "https://doi.org/10.1098/rsif.2016.0410",
+    "citacoes": 90
+  },
+  {
+    "doi": "10.1016/j.sste.2020.100372",
+    "titulo": "Large-scale multivariate forecasting models for Dengue - LSTM versus random forest regression",
+    "autores": "Mussumeci, Elisa; Codeço Coelho, Flávio",
+    "ano": 2020,
+    "periodico": "Spatial and Spatio-temporal Epidemiology",
+    "volume": "35",
+    "pagina": "100372",
+    "url": "https://doi.org/10.1016/j.sste.2020.100372",
+    "citacoes": 77
+  },
+  {
+    "doi": "10.1038/s41598-020-79193-2",
+    "titulo": "Prediction of dengue outbreak in Selangor Malaysia using machine learning techniques",
+    "autores": "Salim, Nurul Azam Mohd; Wah, Yap Bee; Reeves, Caitlynn; Smith, Madison; Yaacob, Wan Fairos Wan; Mudin, Rose Nani",
+    "ano": 2021,
+    "periodico": "Scientific Reports",
+    "volume": "11",
+    "pagina": null,
+    "url": "https://doi.org/10.1038/s41598-020-79193-2",
+    "citacoes": 122
+  },
+  {
+    "doi": "10.1186/s12879-019-3874-x",
+    "titulo": "Prediction of dengue outbreaks based on disease surveillance, meteorological and socio-economic data",
+    "autores": "Jain, Raghvendra; Sontisirikit, Sra; Iamsirithaworn, Sopon; Prendinger, Helmut",
+    "ano": 2019,
+    "periodico": "BMC Infectious Diseases",
+    "volume": "19",
+    "pagina": null,
+    "url": "https://doi.org/10.1186/s12879-019-3874-x",
+    "citacoes": 108
+  },
+  {
+    "doi": "10.1371/journal.pone.0152688",
+    "titulo": "Prediction of Dengue Outbreaks Based on Disease Surveillance and Meteorological Data",
+    "autores": "Ramadona, Aditya Lia; Lazuardi, Lutfan; Hii, Yien Ling; Holmner, Åsa; Kusnanto, Hari; Rocklöv, Joacim",
+    "ano": 2016,
+    "periodico": "PLOS ONE",
+    "volume": "11",
+    "pagina": "e0152688",
+    "url": "https://doi.org/10.1371/journal.pone.0152688",
+    "citacoes": 79
+  },
+  {
+    "doi": "10.1371/journal.pntd.0010631",
+    "titulo": "A systematic review of dengue outbreak prediction models: Current scenario and future directions",
+    "autores": "Leung, Xing Yu; Islam, Rakibul M.; Adhami, Mohammadmehdi; Ilic, Dragan; McDonald, Lara; Palawaththa, Shanika",
+    "ano": 2023,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "volume": "17",
+    "pagina": "e0010631",
+    "url": "https://doi.org/10.1371/journal.pntd.0010631",
+    "citacoes": 93
+  },
+  {
+    "doi": "10.4081/gh.2019.771",
+    "titulo": "Spatiotemporal dengue fever hotspots associated with climatic factors in Taiwan including outbreak predictions based on machine-learning",
+    "autores": "Anno, Sumiko; Hara, Takeshi; Kai, Hiroki; Lee, Ming-An; Chang, Yi; Oyoshi, Kei",
+    "ano": 2019,
+    "periodico": "Geospatial Health",
+    "volume": "14",
+    "pagina": null,
+    "url": "https://doi.org/10.4081/gh.2019.771",
+    "citacoes": 71
+  },
+  {
+    "doi": "10.1371/journal.pone.0189988",
+    "titulo": "Ensemble method for dengue prediction",
+    "autores": "Buczak, Anna L.; Baugher, Benjamin; Moniz, Linda J.; Bagley, Thomas; Babin, Steven M.; Guven, Erhan",
+    "ano": 2018,
+    "periodico": "PLOS ONE",
+    "volume": "13",
+    "pagina": "e0189988",
+    "url": "https://doi.org/10.1371/journal.pone.0189988",
+    "citacoes": 73
+  },
+  {
+    "doi": "10.1186/s12879-018-3066-0",
+    "titulo": "Machine learning methods reveal the temporal pattern of dengue incidence using meteorological factors in metropolitan Manila, Philippines",
+    "autores": "Carvajal, Thaddeus M.; Viacrusis, Katherine M.; Hernandez, Lara Fides T.; Ho, Howell T.; Amalin, Divina M.; Watanabe, Kozo",
+    "ano": 2018,
+    "periodico": "BMC Infectious Diseases",
+    "volume": "18",
+    "pagina": null,
+    "url": "https://doi.org/10.1186/s12879-018-3066-0",
+    "citacoes": 124
+  },
+  {
+    "doi": "10.1016/j.actatropica.2018.05.003",
+    "titulo": "Modeling Dengue vector population using remotely sensed data and machine learning",
+    "autores": "Scavuzzo, Juan M.; Trucco, Francisco; Espinosa, Manuel; Tauro, Carolina B.; Abril, Marcelo; Scavuzzo, Carlos M.",
+    "ano": 2018,
+    "periodico": "Acta Tropica",
+    "volume": "185",
+    "pagina": "167-175",
+    "url": "https://doi.org/10.1016/j.actatropica.2018.05.003",
+    "citacoes": 98
+  },
+  {
+    "doi": "10.1016/j.artmed.2021.102157",
+    "titulo": "Dengue models based on machine learning techniques: A systematic literature review",
+    "autores": "Hoyos, William; Aguilar, Jose; Toro, Mauricio",
+    "ano": 2021,
+    "periodico": "Artificial Intelligence in Medicine",
+    "volume": "119",
+    "pagina": "102157",
+    "url": "https://doi.org/10.1016/j.artmed.2021.102157",
+    "citacoes": 69
+  },
+  {
+    "doi": "10.1371/journal.pone.0270933",
+    "titulo": "Prediction of dengue incidents using hospitalized patients, metrological and socio-economic data in Bangladesh: A machine learning approach",
+    "autores": "Dey, Samrat Kumar; Rahman, Md. Mahbubur; Howlader, Arpita; Siddiqi, Umme Raihan; Uddin, Khandaker Mohammad Mohi; Borhan, Rownak",
+    "ano": 2022,
+    "periodico": "PLOS ONE",
+    "volume": "17",
+    "pagina": "e0270933",
+    "url": "https://doi.org/10.1371/journal.pone.0270933",
+    "citacoes": 61
+  }
+]
