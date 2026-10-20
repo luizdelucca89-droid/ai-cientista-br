@@ -149,12 +149,13 @@ Resultado de uma execução real (Gemini, dados do InfoDengue, n=817 semanas):
 
 | # | Ciclo | Modelo | F1 | AUC | Fidelidade |
 |---|-------|--------|-----|-----|------------|
-| 1 | #136 | regressão logística (baseline climático) | 0,8696 | 0,9834 | ok |
-| 2 | #137 | floresta aleatória + lag de 4 semanas (n=779) | 0,8974 | 0,9757 | ok |
-| 3 | #138 | gradient boosting + CV temporal estrita | 0,8989 | 0,9828 | ok |
+| 1 | #143 | regressão logística (baseline climático) | 0,8696 | 0,9834 | ok |
+| 2 | #144 | floresta aleatória + lag de 4 semanas (n=779) | 0,8974 | 0,9757 | ok |
+| 3 | #145 | gradient boosting + CV temporal estrita | 0,8989 | 0,9828 | ok |
 
-Os três ciclos usam dados reais e passam o portão de submissão; as métricas
-diferem porque os modelos e as features diferem.
+Os três ciclos usam dados reais, passam o portão de submissão e geram pacote
+(`paper.pdf`, `paper.tex`, `bibliografia.bib`, código e metadados de
+procedência); as métricas diferem porque os modelos e as features diferem.
 
 Uso como biblioteca:
 
