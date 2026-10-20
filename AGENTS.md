@@ -148,6 +148,15 @@ Depois de validar, o orquestrador roda uma conferência determinística de
 comparado com os dados produzidos, e os que não têm lastro são reportados. Isso
 pegou um erro real — um `200201` onde o dado dizia `202201`.
 
+O reparo é **ativo**, não só um aviso: `_repair_numeric_fidelity` roda após a
+redação e antes da formatação, reescrevendo cada seção que cita número sem lastro
+(com LLM real, o Gemini inventou "824 amostras iniciais" = 817+7). O resultado
+fica em `fidelidade_pre_formatacao` no `ciclo_completo.json`, e o pacote de
+submissão é rejeitado (`IntegrityError`) se ainda houver número sem lastro — um
+número fabricado não pode mais chegar ao PDF publicado. Armadilha: o reparo só
+terminal quando o LLM coopera; se esgotar as rodadas com suspeitos, o ciclo
+conclui marcado, e o portão de submissão barra a publicação.
+
 ## Interface gráfica e publicação
 
 - `app.py` — UI Streamlit (abas Nova pesquisa / Histórico / Revisão e Rebuttal /

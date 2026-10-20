@@ -268,6 +268,22 @@ class Orchestrator:
             "consenso_painel": panel_result.get("consenso"),
         }
 
+    def _fontes_numericas(
+        self, plan: dict[str, Any], experiment: dict[str, Any], gathered: dict[str, Any] | None
+    ) -> set[float]:
+        """Conjunto de números que servem de lastro para o manuscrito."""
+        fontes_estrutura = {
+            "resultado": experiment.get("resultado"),
+            "hipotese": experiment.get("hipotese_principal"),
+            "plano": plan,
+            "evidencias": gathered,
+            # Valores de método legítimos, definidos na configuração.
+            "alpha": self.config.get("experiments", "alpha", default=0.05),
+            "test_size": self.config.get("experiments", "test_size", default=0.3),
+            "seed": self.config.get("seed", default=None),
+        }
+        return collect_numbers(fontes_estrutura)
+
     def _check_numeric_fidelity(
         self,
         manuscript: str,
@@ -282,23 +298,103 @@ class Orchestrator:
         conferência é determinística e roda sobre as seções do manuscrito (sem
         referências, que trazem anos e códigos de norma alheios ao experimento).
         """
-        fontes_estrutura = {
-            "resultado": experiment.get("resultado"),
-            "hipotese": experiment.get("hipotese_principal"),
-            "plano": plan,
-            "evidencias": gathered,
-            # Valores de método legítimos, definidos na configuração.
-            "alpha": self.config.get("experiments", "alpha", default=0.05),
-            "test_size": self.config.get("experiments", "test_size", default=0.3),
-            "seed": self.config.get("seed", default=None),
-        }
-        fontes = collect_numbers(fontes_estrutura)
+        fontes = self._fontes_numericas(plan, experiment, gathered)
         suspeitos = find_unsupported_numbers(manuscript, fontes)
         return {
             "numeros_verificados_de": len(fontes),
             "numeros_sem_suporte": suspeitos,
             "ok": not suspeitos,
         }
+
+    _SECOES_CORPO = ("resumo", "introducao", "metodologia", "resultados", "conclusao")
+
+    def _reescrever_sem_numeros_sem_lastro(
+        self,
+        topic: str,
+        secao: str,
+        texto: str,
+        suspeitos: list[float],
+        experiment: dict[str, Any],
+    ) -> str:
+        """Pede ao redator que remova da seção os números sem lastro nos dados."""
+        import json
+
+        dados = experiment.get("resultado")
+        prompt = f"""TÓPICO: {topic}
+
+SEÇÃO: {secao.upper()}
+
+A seção abaixo cita números que NÃO têm lastro nos dados reais do experimento:
+{sorted(set(suspeitos))}
+
+REGRA ABSOLUTA: os únicos números permitidos são os que aparecem em DADOS REAIS.
+Reescreva a seção de modo que nenhum número inventado permaneça. Para cada número
+sem lastro, remova a afirmação que o contém ou reformule-a sem valor numérico.
+NUNCA substitua por outro número inventado; NÃO arredonde nem estime.
+
+DADOS REAIS (fonte única de verdade):
+{json.dumps(dados, ensure_ascii=False, indent=2, default=str)[:8000]}
+
+SEÇÃO ATUAL:
+\"\"\"
+{texto}
+\"\"\"
+
+Devolva apenas o texto final da seção, preservando o conteúdo substantivo."""
+        return self.agents["redator"].run(prompt, task="section").raw.strip()
+
+    def _repair_numeric_fidelity(
+        self,
+        topic: str,
+        sections: dict[str, str],
+        plan: dict[str, Any],
+        experiment: dict[str, Any],
+        gathered: dict[str, Any] | None,
+        max_rounds: int = 2,
+    ) -> tuple[dict[str, str], dict[str, Any]]:
+        """Reescreve seções que citam números sem lastro até o manuscrito ficar fiel.
+
+        A conferência numérica sinaliza o erro, mas antes apenas registrava um
+        aviso e o número fabricado ia para o PDF publicado — o que viola a regra de
+        dados 100% reais. Aqui o texto é reparado antes da formatação: cada seção
+        com número sem lastro é reescrita sob a regra de usar só os valores reais.
+        """
+        fontes = self._fontes_numericas(plan, experiment, gathered)
+        for rodada in range(max_rounds):
+            manuscript = self._manuscript_text(topic, sections)
+            if not find_unsupported_numbers(manuscript, fontes):
+                fidelidade = self._check_numeric_fidelity(manuscript, plan, experiment, gathered)
+                fidelidade["rodadas_reparo"] = rodada
+                return sections, fidelidade
+
+            alvos: dict[str, list[float]] = {}
+            for key in self._SECOES_CORPO:
+                texto = sections.get(key)
+                if not texto:
+                    continue
+                suspeitos = find_unsupported_numbers(texto, fontes)
+                if suspeitos:
+                    alvos[key] = suspeitos
+            if not alvos:
+                break
+
+            logger.warning(
+                "Reparo numérico (rodada %s/%s): seções com números sem lastro: %s",
+                rodada + 1, max_rounds, {k: sorted(set(v)) for k, v in alvos.items()},
+            )
+            for key, suspeitos in alvos.items():
+                try:
+                    sections[key] = self._reescrever_sem_numeros_sem_lastro(
+                        topic, key, sections[key], suspeitos, experiment
+                    )
+                except Exception as exc:  # noqa: BLE001 - o reparo é melhor esforço
+                    logger.warning("Falha ao reparar seção %s: %s", key, exc)
+
+        fidelidade = self._check_numeric_fidelity(
+            self._manuscript_text(topic, sections), plan, experiment, gathered
+        )
+        fidelidade["rodadas_reparo"] = max_rounds
+        return sections, fidelidade
 
     # ------------------------------------------------------------------- main
     def run_research_cycle(self, topic: str, force: bool = False) -> dict[str, Any]:
@@ -336,6 +432,15 @@ class Orchestrator:
 
             writing = self.phase_write_and_review(topic, plan, experiment, gathered)
             phases["redacao"] = writing
+
+            # Reparo numérico antes de formatar: garante que nenhum número sem
+            # lastro nos dados chegue ao PDF publicado.
+            secoes_reparadas, fidelidade_previa = self._repair_numeric_fidelity(
+                topic, writing["secoes"], plan, experiment, gathered
+            )
+            writing["secoes"] = secoes_reparadas
+            phases["redacao"]["secoes"] = secoes_reparadas
+            phases["fidelidade_pre_formatacao"] = fidelidade_previa
 
             validation = self.phase_validate(topic, writing["secoes"], plan, experiment, gathered)
             phases["validacao"] = validation
