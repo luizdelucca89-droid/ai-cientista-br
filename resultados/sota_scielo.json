@@ -1,0 +1,547 @@
+[
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1678-4324-2024240297",
+    "titulo": "COVID-19 Severity Prediction Using Combined Machine Learning and Transfer Learning Approaches",
+    "autores": [
+      "Ame Rayan Rambola",
+      "Suruliandi Andavar",
+      "Raja Soosaimarian Peter Raj"
+    ],
+    "ano": 2024,
+    "periodico": "Brazilian Archives of Biology and Technology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1678-4324-2024240297",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2024-0793",
+    "titulo": "Machine learning-based prediction of ultimate load in pultruded glass fibre column under axial compression",
+    "autores": [
+      "Perumal Kajendran",
+      "Pannirselvam Narayanan"
+    ],
+    "ano": 2025,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2024-0793",
+    "resumo": "ABSTRACT This experimental study investigates the axial compression effect of rectangular pultruded glass fiber-reinforced polymer (P-GFRP) tubular column sections, examining the impact of width-to-thickness ratio (B/t), aspect ratio (H/B), and column height on their structural performance. A total of 27 GFRP columns were subjected to axial compression tests to evaluate their ultimate load and initial stiffness. The columns exhibited a uniform failure pattern, characterized by crushing, mid-section fractures, and longitudinal splitting at the corners. The results revealed a negative correlatio",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2025-0692",
+    "titulo": "Performance prediction of sustainable geopolymer concrete incorporating biochar and nano-cellulose using machine learning models",
+    "autores": [
+      "Ramya Alagarsamy",
+      "Lavanya Ganesan"
+    ],
+    "ano": 2026,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2025-0692",
+    "resumo": "ABSTRACT This research examines the compressive strength performance of environmentally friendly geopolymer concrete prepared with fly ash, ground granulated blast furnace slag (GGBS), biochar, and nano, cellulose fibers, facilitated by a machine, learning, based strength prediction. 28 geopolymer mixes were prepared with fixed activators parameters and tested under both heat, curing and ambient, curing conditions at 7, 14, and 28 days. The experimental results augment that slag, rich mixes (&gt;72% GGBS) in combination with moderate biochar content (46%) and nano, cellulose fibers (0.6–1.0%)",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2023-0247",
+    "titulo": "Prediction of autoclaved aerated cement block masonry prism strength under compression using machine learning tools",
+    "autores": [
+      "Soundar Rajan Muthukumar",
+      "Jegatheeswaran"
+    ],
+    "ano": 2024,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2023-0247",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2023-0309",
+    "titulo": "Fiber reinforced self compacting concrete workability properties prediction and optimization of mix using machine learning modeling",
+    "autores": [
+      "Muthaiyan Periyasamy",
+      "Ramadevi Kanagaraj"
+    ],
+    "ano": 2024,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2023-0309",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2026-0094",
+    "titulo": "Sustainable concrete performance prediction using machine learning for mechanical and durability properties with Construction and Demolition waste",
+    "autores": [
+      "Parthiban Velusamy",
+      "Sashikkumar Madurai Chidambaram"
+    ],
+    "ano": 2026,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2026-0094",
+    "resumo": "ABSTRACT This research explored the use of Construction and Demolition (C&amp;D) waste as a partial replacement for natural aggregates in concrete and its influence on fresh, mechanical, and durability properties. Results revealed that workability, slump, and setting time decreased with higher C&amp;D content; however, slump showed only a 12% reduction at a 40% substitution rate, remaining within acceptable industry limits. Compressive strength experienced a minimal 4% decline at this level, still meeting construction standards. Durability properties showed some variation: water absorption dou",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1517-7076-rmat-2025-1109",
+    "titulo": "Machine learning-enabled prediction of structural response in CFRP-wrapped steel–concrete hybrid composites",
+    "autores": [
+      "Mohamed Thameem Ansari Haja Mohideen",
+      "Shahul Hameed Masthan Ali"
+    ],
+    "ano": 2026,
+    "periodico": "Matéria (Rio de Janeiro)",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1517-7076-rmat-2025-1109",
+    "resumo": "ABSTRACT Steel–concrete hybrid composites reinforced with Carbon Fibre Reinforced Polymer (CFRP) are widely used for structural retrofitting and seismic strengthening due to their superior load-carrying capacity, stiffness, and durability. However, accurately modelling the nonlinear and time-dependent behaviour of these multi-material systems remains challenging because of the complex interaction between steel, concrete, and CFRP under varying loading conditions. This study proposes a machine-learning–based predictive framework, termed Hybrid Deep Regression Network with Physics-Informed Featu",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/0034-737x2024710040",
+    "titulo": "Early prediction of frost events in high altitude crops, using machine learning methods",
+    "autores": [
+      "Evelin Calderón Caro",
+      "Darío Antonio Castañeda Sánchez",
+      "John Willian Branch Bedoya"
+    ],
+    "ano": 2024,
+    "periodico": "Revista Ceres",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/0034-737x2024710040",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1807-1929/agriambi.v30n1e294870",
+    "titulo": "Accurate prediction of soil organic carbon using spectroscopic techniques and machine learning",
+    "autores": [
+      "María A. García-Zambrano",
+      "Victoria E. Cusme-Zambrano",
+      "Luis Cedeño-Valarezo",
+      "José L. Reyna-Bowen"
+    ],
+    "ano": 2026,
+    "periodico": "Revista Brasileira de Engenharia Agrícola e Ambiental",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1807-1929/agriambi.v30n1e294870",
+    "resumo": "ABSTRACT Soil organic carbon is a key indicator for assessing soil quality and condition. Its estimation can be conducted through hyperspectral imaging spectroscopy within the visible and near-infrared (VNIR) range. This study aimed to evaluate the potential of spectroscopic techniques to accurately predict soil organic carbon (SOC) content by comparing direct field measurements with laboratory-processed samples. The efficiency and reliability of this approach were assessed. A rigorous exploratory data analysis (EDA) was conducted to identify key spectral features and minimize noise. Support v",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1984-70332021v21sa15",
+    "titulo": "Technical nuances of machine learning: implementation and validation of supervised methods for genomic prediction in plant breeding",
+    "autores": [
+      "Alencar Xavier"
+    ],
+    "ano": 2021,
+    "periodico": "Crop Breeding and Applied Biotechnology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1984-70332021v21sa15",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0037-86822011000400007",
+    "titulo": "A SARIMA forecasting model to predict the number of cases of dengue in Campinas, State of São Paulo, Brazil",
+    "autores": [
+      "Edson Zangiacomi Martinez",
+      "Elisângela Aparecida Soares da Silva",
+      "Amaury Lelis Dal Fabbro"
+    ],
+    "ano": 2011,
+    "periodico": "Revista da Sociedade Brasileira de Medicina Tropical",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0037-86822011000400007",
+    "resumo": "INTRODUCTION: Forecasting dengue cases in a population by using time-series models can provide useful information that can be used to facilitate the planning of public health interventions. The objective of this article was to develop a forecasting model for dengue incidence in Campinas, southeast Brazil, considering the Box-Jenkins modeling approach. METHODS: The forecasting model for dengue incidence was performed with R software using the seasonal autoregressive integrated moving average (SARIMA) model. We fitted a model based on the reported monthly incidence of dengue from 1998 to 2008, a",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0100-204x2016000500020",
+    "titulo": "Spatial forecasting of red palm mite in Brazil under current and future climate change scenarios",
+    "autores": [
+      "Denise Navia",
+      "Emília Hamada",
+      "Manoel Guedes Correa Gondim Jr.",
+      "Norton Polo Benito"
+    ],
+    "ano": 2016,
+    "periodico": "Pesquisa Agropecuária Brasileira",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0100-204x2016000500020",
+    "resumo": "Abstract: The objective of this work was to predict the spatial distribution of the red palm mite, Raoiella indica (Acari: Tenuipalpidae), in Brazil under current and future climate change scenarios. A mapping method of species distribution based on the geographic information system (GIS) was used. The maps were constructed taking into account ranges of favorability for temperature and relative humidity. Favorability levels were defined considering the available information on pest biology and population dynamics. To characterize the current climatic conditions, information was referenced to t",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/scielopreprints.9174",
+    "titulo": "Exploration of Climate Data and Temperature Forecasting using Machine Learning",
+    "autores": [
+      "Eman AlBalawi"
+    ],
+    "ano": 2024,
+    "periodico": null,
+    "tipo": "posted-content",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/scielopreprints.9174",
+    "resumo": "In this short communication, a concept has been presented to model geographical data to predict future temperature of Tabuk, region. Machine learning has been applied to the weather station data to develop a prediction model. The preliminary results are promising and encouraging and are envisaging to further this research towards the determination of unknown temperature rise in the region. This is important to mention here, that the problem has been formulated as a Regression problem, NOT as a classification problem. Hence, applying Convolutional neural networks is not possible, due to the non",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0074-02762008000600008",
+    "titulo": "Study of the relationship between Aedes (Stegomyia) aegypti egg and adult densities, dengue fever and climate in Mirassol, state of São Paulo, Brazil",
+    "autores": [
+      "Margareth Regina Dibo",
+      "Ana Patricia Chierotti",
+      "Mariana Silveira Ferrari",
+      "Adriano Luis Mendonça",
+      "Francisco Chiaravalloti Neto"
+    ],
+    "ano": 2008,
+    "periodico": "Memórias do Instituto Oswaldo Cruz",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0074-02762008000600008",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/scielopreprints.8117",
+    "titulo": "Influence of temperature on the incidence of dengue in the city of Campinas, São Paulo state, Brazil (2013 – 2022)",
+    "autores": [
+      "Bernardo Geraldini",
+      "Igor Cavallini Johansen",
+      "Marcelo Justus"
+    ],
+    "ano": 2024,
+    "periodico": null,
+    "tipo": "posted-content",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/scielopreprints.8117",
+    "resumo": "Global dengue cases rise, notably in Brazil. This study analyzes temperature’s role in itsspread. By using monthly data and controlling for rainfall, linear regressions with ARIMA errorswere estimated in order to measure the influence of temperature on the incidence of denguein the city of Campinas, São Paulo state, Brazil. Findings reveal that a 1ºC increase in meantemperature leads to a cumulative increase of approximately 20% – 30% in dengue incidencewithin one to two months. Rainfall shows no discernible impact. Results highlight theimportance of temperature on the spread of dengue and pot",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/2358-2898202514510032i",
+    "titulo": "Impact of dengue research funded by the Ministry of Health in Brazil",
+    "autores": [
+      "Gabriela Bardelini Tavares Melo",
+      "Marcos Takashi Obara",
+      "Antonia Angulo-Tuesta"
+    ],
+    "ano": 2025,
+    "periodico": "Saúde em Debate",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/2358-2898202514510032i",
+    "resumo": "ABSTRACT This study assessed the impact of 24 dengue research projects funded by the Department of Science and Technology of the Ministry of Health, in partnership with the National Council for Scientific and Technological Development, in the years 2006, 2008, and 2012, using the dimensions of knowledge advancement, research capacity, informed decision-making, and health impacts as reference from the Impact Evaluation Framework of the Canadian Academy of Health Sciences. Data were collected through document reviews, questionnaires, and interviews with the coordinators of the dengue research pr",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/0103-1104202313817",
+    "titulo": "Financiamento de pesquisas sobre dengue no Brasil, 2004-2020",
+    "autores": [
+      "Gabriela Bardelini Tavares Melo",
+      "Antonia Angulo-Tuesta",
+      "Everton Nunes da Silva",
+      "Marcos Takashi Obara"
+    ],
+    "ano": 2023,
+    "periodico": "Saúde em Debate",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/0103-1104202313817",
+    "resumo": "RESUMO A dengue representa um importante problema de saúde pública no Brasil devido às constantes epidemias causadas pela doença no País. Este estudo objetivou analisar o financiamento de pesquisas sobre dengue pelo Departamento de Ciência e Tecnologia do Ministério da Saúde e parceiros no período de 2004 a 2020. Analisou-se a tendência do financiamento por regressão linear generalizada do tipo Prais-Winster e sua distribuição entre as regiões e Unidades Federadas brasileiras, modalidades de contratação das pesquisas, instituições beneficiadas e temas estudados. Entre 2004 e 2020, financiaram-",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/0103-1104202313817i",
+    "titulo": "Funding for research on dengue in Brazil, 2004-2020",
+    "autores": [
+      "Gabriela Bardelini Tavares Melo",
+      "Antonia Angulo-Tuesta",
+      "Everton Nunes da Silva",
+      "Marcos Takashi Obara"
+    ],
+    "ano": 2023,
+    "periodico": "Saúde em Debate",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/0103-1104202313817i",
+    "resumo": "ABSTRACT Dengue represents an important public health problem in Brazil, due to the constant epidemics caused by the disease in the country. This study aimed to analyze the funding of research on dengue by the Department of Science and Technology of the Ministry of Health of Brazil and partners between 2004 to 2020. Was analyzed the trend of the funding by generalized linear regression using Prais-Winster and its distribution between Brazilian regions and Federated Units, research contracting modalities, benefited institutions, and studied themes. Between 2004 and 2020, 232 research studies we",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/2358-2898202514510032p",
+    "titulo": "Impacto de pesquisas de dengue financiadas pelo Ministério da Saúde no Brasil",
+    "autores": [
+      "Gabriela Bardelini Tavares Melo",
+      "Marcos Takashi Obara",
+      "Antonia Angulo-Tuesta"
+    ],
+    "ano": 2025,
+    "periodico": "Saúde em Debate",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/2358-2898202514510032p",
+    "resumo": "RESUMO Este estudo avaliou o impacto de 24 pesquisas sobre dengue financiadas pelo Departamento de Ciência e Tecnologia do Ministério da Saúde, em parceria com o Conselho Nacional de Desenvolvimento Científico e Tecnológico, nos anos 2006, 2008 e 2012, utilizando como referência as dimensões avanços do conhecimento, capacidade de pesquisa, tomada de decisão informada e impactos na saúde da Matriz de Avaliação de Impacto da Canadian Academy of Health Sciences. Os dados foram coletados por levantamento documental, questionários e entrevistas com os/as coordenadores/as das pesquisas de dengue. Fo",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0037-86822012000300001",
+    "titulo": "Dengue in Brazil",
+    "autores": [
+      "Luiz Tadeu Moraes Figueiredo"
+    ],
+    "ano": 2012,
+    "periodico": "Revista da Sociedade Brasileira de Medicina Tropical",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0037-86822012000300001",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s2237-96222023000200024",
+    "titulo": "Is the mosquito the problem? Aedes aegypti and urban arboviruses - contradictions and reflections",
+    "autores": [
+      "Denise Valle",
+      "Raquel Aguiar"
+    ],
+    "ano": 2023,
+    "periodico": "Epidemiologia e Serviços de Saúde",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s2237-96222023000200024",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0037-86821989000100011",
+    "titulo": "Aedes aegypti e Aedes albopictus no Brasil",
+    "autores": [
+      "Pedro Luiz Tauil"
+    ],
+    "ano": 1989,
+    "periodico": "Revista da Sociedade Brasileira de Medicina Tropical",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0037-86821989000100011",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1519-6984.259506",
+    "titulo": "Acetylcholinesterase inhibitory potential of scorpion venom in Aedes aegypti (Diptera: Culicidae)",
+    "autores": [
+      "N. Riaz",
+      "F. Zubair",
+      "N. Amjad",
+      "S. Ashraf",
+      "S. Asghar",
+      "M. Z. Awan",
+      "S. Javaid"
+    ],
+    "ano": 2024,
+    "periodico": "Brazilian Journal of Biology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1519-6984.259506",
+    "resumo": "Abstract Scorpion venom contains a variety of neurotoxins which interact with ion channels and affect their activities. The present study was designed to evaluate the potential of scorpion venom as acetylcholinesterase (AChE) inhibitor by using Aedes aegypti as model organism. Venoms of two species, Hottentota tamulus (Fabricus, 1798) and Androctonus finitimus (Pocock, 1897) were selected for this study. Two peptides (36 kDa from H. tamulus and 54 kDa from A. finitimus) were separated from scorpion venom by using HPLC. Selected peptides caused significantly higher mortality in larvae and adult",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0104-71832017000200002",
+    "titulo": "O Aedes aegypti e o digital",
+    "autores": [
+      "Jean Segata"
+    ],
+    "ano": 2017,
+    "periodico": "Horizontes Antropológicos",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0104-71832017000200002",
+    "resumo": "Resumo: Este artigo conjuga interesses do campo das relações humano-animal com aquelas da pesquisa antropológica em cibercultura. Trata-se de uma reflexão sobre as redefinições de cultura a partir das tecnologias da computação e da informação e sua estreita articulação com a ordem de produção e de controle da vida. Esses temas são abordados a partir dos resultados de uma pesquisa etnográfica na qual acompanhei a implantação de uma nova metodologia de atuação contra o Aedes aegypti em uma capital do Nordeste do Brasil, baseada em tecnologias para georreferenciamento de zonas de risco. O meu obj",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1519-6984.274954",
+    "titulo": "Native fungi from Amazon with potential for control of Aedes aegypti L. (Diptera: Culicidae)",
+    "autores": [
+      "G. R. Q. Mendonça",
+      "L. P. Peters",
+      "L. M. Lopes",
+      "A. H. Sousa",
+      "C. M. Carvalho"
+    ],
+    "ano": 2023,
+    "periodico": "Brazilian Journal of Biology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1519-6984.274954",
+    "resumo": "Abstract Aedes aegypti L. (Diptera: Culicidae) is the main transmitter of pathogens that cause human diseases, including dengue, chikungunya, zika and yellow fever. Faced with this problem, this study aims to select fungi with entomopathogenic potential against Ae. aegypti and develop formulations that optimize the control action of entomopathogenic fungi in the semi-field condition. 23 fungal strains native from Amazon were inoculated in Potato-Dextrose-Agar (PDA) culture medium for 14 days and then transferred by scraping to tubes containing 0.9% NaCl solution. To obtain the larvae, eggs wer",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0034-89102000000600002",
+    "titulo": "Infestação do Estado de São Paulo por Aedes aegypti e Aedes albopictus",
+    "autores": [
+      "Carmen Moreno Glasser",
+      "Almério de Castro Gomes"
+    ],
+    "ano": 2000,
+    "periodico": "Revista de Saúde Pública",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0034-89102000000600002",
+    "resumo": "OBJETIVO: Estudar a influência da distância entre áreas infestadas e não infestadas na expansão geográfica das populações de Aedes aegypti e de Aedes albopictus no Estado de São Paulo e os padrões regionais observados, considerando os determinantes relacionados com a ocupação do solo. MÉTODOS: Foram utilizadas informações sobre ocorrência de focos de Ae. aegypti e de Ae. albopictus em municípios do Estado de São Paulo, a cada ano, e sobre a infestação em municípios deste e de Estados vizinhos, ao final de cada ano, de 1985 a 1995. Foram definidos quatro indicadores para a análise do processo d",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1519-6984.283724",
+    "titulo": "Larvicidal activity and chemical composition of four essential oils against Aedes aegypti (Diptera: Culicidae)",
+    "autores": [
+      "I. L. S. Cruz",
+      "M. A. G. Pimentel",
+      "T. A. Nascimento",
+      "S. P. Alves",
+      "M. Maleck",
+      "M. M. C. Queiroz"
+    ],
+    "ano": 2024,
+    "periodico": "Brazilian Journal of Biology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1519-6984.283724",
+    "resumo": "Abstract The use of botanical insecticides has increased in recent years due to the demand for effective products, particularly against insects resistant to conventional insecticides. Among these is Aedes aegypti, a well-adapted mosquito to urban environments that opportunistically feeds on humans and animals, contributing to the spread of virus. We evaluated the potential of essential oils (EOs) extracted from Eucalyptus citriodora, Eucalyptus staigeriana, Eucalyptus caryophyllus, and Mentha arvensis in terms of their larvicidal activity against Ae. aegypti. EOs’ compounds were determined usi",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1519-6984.290849",
+    "titulo": "Inhibition of acetylcholinesterase and histopathological changes in Aedes aegypti and Aedes albopictus larvae exposed to ethanolic extract of Acmella oleracea (L.) R.K. Jansen (Asteraceae)",
+    "autores": [
+      "C. L. S. Cabeça",
+      "M. A. P. Ferreira",
+      "A. C. S. Ferreira",
+      "D. R. Alves",
+      "S. M. Morais",
+      "V. L. Farias",
+      "G. R. Silva",
+      "A. M. Rodrigues"
+    ],
+    "ano": 2025,
+    "periodico": "Brazilian Journal of Biology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1519-6984.290849",
+    "resumo": "Abstract Important arboviruses for public health such as Dengue, Zika, and Chikungunya are transmitted by mosquito vectors, primarily Aedes aegypti and Aedes albopictus. The control of populations of these mosquitoes can be carried out by mechanical, chemical, and biological control. In view of the environmental impacts caused by synthetic chemical insecticides, the search for botanical larvicides with larvicidal potential has intensified. The objective of this work is to investigate the occurrence of acetylcholinesterase inhibition and histopathological alterations in Aedes aegypti and Aedes",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/s0074-02762008005000003",
+    "titulo": "Aedes aegypti, Aedes albopictus, and dengue in Argentina: current knowledge and future directions",
+    "autores": [
+      "Darío Vezzani",
+      "Aníbal E Carbajo"
+    ],
+    "ano": 2008,
+    "periodico": "Memórias do Instituto Oswaldo Cruz",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/s0074-02762008005000003",
+    "resumo": "",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  },
+  {
+    "fonte": "scielo/crossref",
+    "doi": "10.1590/1519-6984.275582",
+    "titulo": "Potential breeding containers of Aedes aegypti (Linnaeus, 1762) and Aedes albopictus (Skuse, 1894) at strategic points in a city in the eastern region of Maranhão",
+    "autores": [
+      "G. O. Rodrigues",
+      "B. G. V. Pereira",
+      "M. A. F. Pereira",
+      "J. M. Trindade-Bezerra",
+      "A. S. Guimarães-e-Silva",
+      "V. C. Soares-Pinheiro",
+      "J. Soares-da-Silva"
+    ],
+    "ano": 2023,
+    "periodico": "Brazilian Journal of Biology",
+    "tipo": "journal-article",
+    "editora": "FapUNIFESP (SciELO)",
+    "url": "https://doi.org/10.1590/1519-6984.275582",
+    "resumo": "Abstract Potential breeding containers for Aedes aegypti and Aedes albopictus mosquitoes are found in different environments, these places are considered by the National Dengue Control Program in Brazil as strategic points (SP), which have favorable conditions for the development of those insects. The aim of this study is to identify potential breeding containers for A. aegypti and A. albopictus at strategic points in the city of Codó, Maranhão. This study was conducted in five districts, one in each administrative area of the city. A survey of the types and quantity of existing strategic poin",
+    "acesso": "aberto",
+    "colecao": "SciELO"
+  }
+]

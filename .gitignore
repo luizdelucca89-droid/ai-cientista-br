@@ -24,3 +24,13 @@ chromedriver
 resultado_swarm.txt
 data/dataset_cache/
 pacote_open_science/
+
+# Artefatos de build LaTeX
+*.aux
+*.out
+*.toc
+*.bbl
+*.blg
+
+# PDF do manuscrito deve ser versionado
+!paper/paper_sbc.pdf

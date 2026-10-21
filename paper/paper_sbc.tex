@@ -58,16 +58,54 @@ ao (i) isolar o efeito do satélite com um cenário de ablação de mesmo algori
 (ii) usar validação estritamente temporal e (iii) reportar o resultado nulo com
 o mesmo rigor que um resultado positivo.
 
+\textbf{Estado da arte (métricas extraídas dos abstracts originais).} A
+Tabela~\ref{tab:sota} reúne as métricas reportadas por estudos comparáveis,
+obtidas dos abstracts reais via Crossref/OpenAlex. O SOTA de referência mais
+direto é o de Souza et al. (?), único estudo brasileiro
+da lista, com \textbf{acurácia 0,80} sobre dados
+exclusivamente climáticos. É contra esse patamar que nosso baseline tabular se
+posiciona.
+
+\begin{table}[h]
+\centering
+\caption{Estado da arte: métricas reportadas nos abstracts originais (Tarefa 1).}
+\label{tab:sota}
+\begin{tabular}{llrr}
+\toprule
+Estudo & Métrica & Valor (\%) & Ref. \\
+\midrule
+    Souza (2022) & acuracia & 0,80 & \cite{10.1016/j.eswa.2021.116324} \\
+    Yavari Nejad (2021) & acuracia & 92,35 & \cite{10.1186/s12911-021-01493-y} \\
+    Salim (2021) & acuracia & 70,00 & \cite{10.1038/s41598-020-79193-2} \\
+    Iqbal (2019) & acuracia & 92,00 & \cite{10.31449/inf.v43i3.1548} \\
+    Thirugnanam (2023) & F1 & 98,00 & \cite{10.18280/ria.370521} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Materiais}
-\textbf{InfoDengue} (Fiocruz/FGV), semanas epidemiológicas observadas,
-\url{https://info.dengue.mat.br/api/alertcity}: 1233 amostras,
-8 municípios, 8 atributos tabulares.
-\textbf{NASA GIBS/MODIS}, camada \texttt{MODIS\_Terra\_L3\_NDVI\_16Day},
-\url{https://gibs.earthdata.nasa.gov}, colormap oficial
+\textbf{InfoDengue} (Fiocruz/FGV), \emph{versão da API} \texttt{alertcity},
+semanas epidemiológicas observadas, \url{https://info.dengue.mat.br/api/alertcity}:
+1233 amostras, 8 municípios, 8
+atributos tabulares. Coleta: 2026-10-20T23:46:02.
+\textbf{NASA GIBS/MODIS}, camada \texttt{MODIS\_Terra\_L3\_NDVI\_16Day}
+(produto MOD13, composto de 16 dias), \url{https://gibs.earthdata.nasa.gov},
+colormap oficial \texttt{MODIS\_L3\_NDVI.xml} (142 entradas RGB$\to$NDVI),
 \url{https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS\_L3\_NDVI.xml}:
 4 atributos de satélite.
 \textbf{Malha municipal} do IBGE, \url{https://servicodados.ibge.gov.br/api/v3/malhas}.
 Divisão temporal: treino 986, teste 247 (79 positivos).
+
+\textbf{Limitação de fonte declarada (INPE/PRODES).} Testamos as camadas
+\texttt{prodes-amazon-nb:yearly\_deforestation\_biome} e \texttt{deter-amz:deter\_amz}
+do GeoServer do TerraBrasilis/INPE. Ambas cobrem apenas a Amazônia Legal: dos
+8 municípios do estudo, somente Manaus apresenta alertas
+(149 alertas DETER em 2022--2024; zero nos demais sete). PRODES/DETER são,
+ainda, anuais e estaduais, inadequados à agregação semanal municipal. Por isso
+\textbf{não} foram usados como atributo, e nenhuma feature foi fabricada para
+substituí-los: os atributos de satélite efetivos vêm do NDVI/MODIS, de cobertura
+nacional. Evidência em \texttt{resultados/evidencia\_inpe\_prodes.json}.
+
 
 \section{Métodos}
 \subsection{Pipeline multiagente e roteamento MoE}
@@ -204,6 +242,26 @@ humano foi curadoria, definição da hipótese e validação. Zero dados sintét
 \bibitem{10.1016/j.actatropica.2018.05.003} Scavuzzo, Juan M.; Trucco, Francisco; Espinosa, Manuel; Tauro, Carolina B.; Abril, Marcelo; Scavuzzo, Carlos M.. Modeling Dengue vector population using remotely sensed data and machine learning. Acta Tropica, v. 185, p. 167-175, 2018. DOI: 10.1016/j.actatropica.2018.05.003.
 \bibitem{10.1016/j.artmed.2021.102157} Hoyos, William; Aguilar, Jose; Toro, Mauricio. Dengue models based on machine learning techniques: A systematic literature review. Artificial Intelligence in Medicine, v. 119, p. 102157, 2021. DOI: 10.1016/j.artmed.2021.102157.
 \bibitem{10.1371/journal.pone.0270933} Dey, Samrat Kumar; Rahman, Md. Mahbubur; Howlader, Arpita; Siddiqi, Umme Raihan; Uddin, Khandaker Mohammad Mohi; Borhan, Rownak. Prediction of dengue incidents using hospitalized patients, metrological and socio-economic data in Bangladesh: A machine learning approach. PLOS ONE, v. 17, p. e0270933, 2022. DOI: 10.1371/journal.pone.0270933.
+\bibitem{10.1016/j.eswa.2021.116324} Souza, Caio; Maia, Pedro; Stolerman, Lucas M.; Rolla, Vitor; Velho, Luiz. Predicting dengue outbreaks in Brazil with manifold learning on climate data. Expert Systems with Applications, v. 192, p. 116324, 2022. DOI: 10.1016/j.eswa.2021.116324.
+\bibitem{10.1038/s41598-024-52796-9} Sebastianelli, Alessandro; Spiller, Dario; Carmo, Raquel; Wheeler, James; Nowakowski, Artur; Jacobson, Ludmilla Viana. A reproducible ensemble machine learning approach to forecast dengue outbreaks. Scientific Reports, v. 14, 2024. DOI: 10.1038/s41598-024-52796-9.
+\bibitem{10.1186/s12911-021-01493-y} Yavari Nejad, Felestin; Varathan, Kasturi Dewi. Identification of significant climatic risk factors and machine learning models in dengue outbreak prediction. BMC Medical Informatics and Decision Making, v. 21, 2021. DOI: 10.1186/s12911-021-01493-y.
+\bibitem{10.1101/046193} Codeço, Cláudia T; Cruz, Oswaldo G; Riback, Thais I; Degener, Carolin M; Gomes, Marcelo F; Villela, Daniel. InfoDengue: a nowcasting system for the surveillance of dengue fever transmission. 2016. DOI: 10.1101/046193.
+\bibitem{10.1016/j.respe.2018.05.408} Codeco, C.; Coelho, F.; Cruz, O.; Oliveira, S.; Castro, T.; Bastos, L.. Infodengue: A nowcasting system for the surveillance of arboviruses in Brazil. Revue d'Épidémiologie et de Santé Publique, v. 66, p. S386, 2018. DOI: 10.1016/j.respe.2018.05.408.
+\bibitem{10.1201/b13040-9} Shimabukuro, Yosio Edemir; dos Santos, João Roberto; Formaggio, Antonio Roberto; Duarte, Valdete; Theodor Rudorff, Bernardo Friedrich. The Brazilian Amazon Monitoring Program: PRODES and DETER Projects. Global Forest Monitoring from Earth Observation, p. 153-169, 2016. DOI: 10.1201/b13040-9.
+\bibitem{10.1016/j.rse.2017.06.031} Gorelick, Noel; Hancher, Matt; Dixon, Mike; Ilyushchenko, Simon; Thau, David; Moore, Rebecca. Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, v. 202, p. 18-27, 2017. DOI: 10.1016/j.rse.2017.06.031.
+\bibitem{10.1023/A:1010933404324} Breiman, Leo. Random Forests. Machine Learning, v. 45, p. 5-32, 2001. DOI: 10.1023/A:1010933404324.
+\bibitem{10.1145/2382577.2382579} Kaufman, Shachar; Rosset, Saharon; Perlich, Claudia; Stitelman, Ori. Leakage in data mining. ACM Transactions on Knowledge Discovery from Data, v. 6, p. 1-21, 2012. DOI: 10.1145/2382577.2382579.
+\bibitem{10.1111/j.1365-2656.2008.01390.x} Elith, J.; Leathwick, J. R.; Hastie, T.. A working guide to boosted regression trees. Journal of Animal Ecology, v. 77, p. 802-813, 2008. DOI: 10.1111/j.1365-2656.2008.01390.x.
+\bibitem{10.1017/s0950268821001801} Queiroz, Eny Regina da Silva; Medronho, Roberto de Andrade. Spatial analysis of the incidence of Dengue, Zika and Chikungunya and socioeconomic determinants in the city of Rio de Janeiro, Brazil. Epidemiology and Infection, v. 149, 2021. DOI: 10.1017/s0950268821001801.
+\bibitem{10.1016/j.tmaid.2025.102934} Bermudi, Patricia Marques Moralejo; Palasio, Raquel Gardini Sanches; Pirani, Monica; Santana, Lidia Maria Reis; Barbosa, Gerson Laurindo; Blangiardo, Marta. Dengue incidence, mortality, and case-fatality in Brazil: spatial patterns, socioeconomic contrasts, and serotype impact. Travel Medicine and Infectious Disease, v. 68, p. 102934, 2025. DOI: 10.1016/j.tmaid.2025.102934.
+\bibitem{10.3390/rs14195052} Li, Zhichao; Dong, Jinwei. Big Geospatial Data and Data-Driven Methods for Urban Dengue Risk Forecasting: A Review. Remote Sensing, v. 14, p. 5052, 2022. DOI: 10.3390/rs14195052.
+\bibitem{10.1080/01431160902865756} Fuller, Douglas O.; Troyo, Adriana; Calderón-Arguedas, Olger; Beier, John C.. Dengue vector (<i>Aedes aegypti</i>) larval habitats in an urban environment of Costa Rica analysed with ASTER and QuickBird imagery. International Journal of Remote Sensing, v. 31, p. 3-11, 2010. DOI: 10.1080/01431160902865756.
+\bibitem{10.1016/j.srs.2026.100490} Singh, Shubham K.; Fan, Peilei; Chen, Jiquan. Ecoregion-specific dengue risk prediction in Peru using remote sensing, machine learning, and spatiotemporal modeling. Science of Remote Sensing, v. 14, p. 100490, 2026. DOI: 10.1016/j.srs.2026.100490.
+\bibitem{10.1016/j.ecoinf.2020.101149} Brum-Bastos, Vanessa; Long, Jed; Church, Katharyn; Robson, Greg; de Paula, Rogério; Demšar, Urška. Multi-source data fusion of optical satellite imagery to characterize habitat selection from wildlife tracking data. Ecological Informatics, v. 60, p. 101149, 2020. DOI: 10.1016/j.ecoinf.2020.101149.
+\bibitem{10.21203/rs.3.rs-3161529/v1} Lima, Hélder; Tupinambás, Unaí; Guimarães, Frederico. Estimating epidemiological parameters and underreporting of Covid-19 cases in Brazil using a multi-wave mathematical model. 2023. DOI: 10.21203/rs.3.rs-3161529/v1.
+\bibitem{10.3390/tropicalmed7100322} Cabrera, Maritza; Leake, Jason; Naranjo-Torres, José; Valero, Nereida; Cabrera, Julio C.; Rodríguez-Morales, Alfonso J.. Dengue Prediction in Latin America Using Machine Learning and the One Health Perspective: A Literature Review. Tropical Medicine and Infectious Disease, v. 7, p. 322, 2022. DOI: 10.3390/tropicalmed7100322.
+\bibitem{10.18280/ria.370521} Thirugnanam, Archana; Hussain, Faritha Banu Jahir. Exploring Machine Learning Algorithms for the Prediction of Dengue: A Comprehensive Review. Revue d'Intelligence Artificielle, v. 37, p. 1281-1290, 2023. DOI: 10.18280/ria.370521.
+\bibitem{10.31449/inf.v43i3.1548} Iqbal, Naiyar; Islam, Mohammad. Machine learning for dengue outbreak prediction: A performance evaluation of different prominent classifiers. Informatica, v. 43, 2019. DOI: 10.31449/inf.v43i3.1548.
 \end{thebibliography}
 
 \end{document}

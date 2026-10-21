@@ -1,0 +1,114 @@
+[
+  {
+    "doi": "10.1101/046193",
+    "titulo": "InfoDengue: a nowcasting system for the surveillance of dengue fever transmission",
+    "primeiro_autor": "Codeço",
+    "ano": 2016,
+    "periodico": null,
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1016/j.respe.2018.05.408",
+    "titulo": "Infodengue: A nowcasting system for the surveillance of arboviruses in Brazil",
+    "primeiro_autor": "Codeco",
+    "ano": 2018,
+    "periodico": "Revue d'Épidémiologie et de Santé Publique",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1201/b13040-9",
+    "titulo": "The Brazilian Amazon Monitoring Program: PRODES and DETER Projects",
+    "primeiro_autor": "Shimabukuro",
+    "ano": 2016,
+    "periodico": "Global Forest Monitoring from Earth Observation",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1016/j.rse.2017.06.031",
+    "titulo": "Google Earth Engine: Planetary-scale geospatial analysis for everyone",
+    "primeiro_autor": "Gorelick",
+    "ano": 2017,
+    "periodico": "Remote Sensing of Environment",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1023/A:1010933404324",
+    "titulo": "Random Forests",
+    "primeiro_autor": "Breiman",
+    "ano": 2001,
+    "periodico": "Machine Learning",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1145/2382577.2382579",
+    "titulo": "Leakage in data mining",
+    "primeiro_autor": "Kaufman",
+    "ano": 2012,
+    "periodico": "ACM Transactions on Knowledge Discovery from Data",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1016/j.rse.2019.111361",
+    "titulo": "Snow wetness and density retrieved from L-band satellite radiometer observations over a site in the West Greenland ablation zone",
+    "primeiro_autor": "Houtz",
+    "ano": 2019,
+    "periodico": "Remote Sensing of Environment",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1038/s41597-019-0233-0",
+    "titulo": "Spatial high-resolution socio-energetic data for municipal energy system analyses",
+    "primeiro_autor": "Weinand",
+    "ano": 2019,
+    "periodico": "Scientific Data",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1371/journal.pntd.0006574",
+    "titulo": "Molecular xenomonitoring for Wuchereria bancrofti in Culex quinquefasciatus in two districts in Bangladesh supports transmission assessment survey findings",
+    "primeiro_autor": "Irish",
+    "ano": 2018,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1016/j.ecoinf.2020.101149",
+    "titulo": "Multi-source data fusion of optical satellite imagery to characterize habitat selection from wildlife tracking data",
+    "primeiro_autor": "Brum-Bastos",
+    "ano": 2020,
+    "periodico": "Ecological Informatics",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1016/j.envres.2020.110249",
+    "titulo": "Exposure to environmental phthalates during preschool age and obesity from childhood to young adulthood",
+    "primeiro_autor": "Zettergren",
+    "ano": 2021,
+    "periodico": "Environmental Research",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1371/journal.pntd.0011021",
+    "titulo": "Serological evidence of Yersinia pestis infection in rodents and carnivores in Northwestern Iran",
+    "primeiro_autor": "Esmaeili",
+    "ano": 2023,
+    "periodico": "PLOS Neglected Tropical Diseases",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.3390/tropicalmed8060304",
+    "titulo": "Assessing the Efficacy of Monovalent and Commercialized Antivenoms for Neutralizing Moroccan Cobra Naja haje Venom: A Comparative Study",
+    "primeiro_autor": "Khourcha",
+    "ano": 2023,
+    "periodico": "Tropical Medicine and Infectious Disease",
+    "verificado_crossref": true
+  },
+  {
+    "doi": "10.1038/s41598-022-09026-x",
+    "titulo": "Despite its sequence identity with canonical H4, Drosophila H4r product is enriched at specific chromatin regions",
+    "primeiro_autor": "Ábrahám",
+    "ano": 2022,
+    "periodico": "Scientific Reports",
+    "verificado_crossref": true
+  }
+]

@@ -1,0 +1,497 @@
+{
+  "crossref": [
+    {
+      "fonte": "crossref",
+      "doi": "10.18178/ijmlc.2018.8.4.718",
+      "titulo": "Application of Remote Sensing Data for Dengue Outbreak Estimation Using Bayesian Network",
+      "autores": [],
+      "ano": 2018,
+      "periodico": "International Journal of Machine Learning and Computing",
+      "tipo": "journal-article",
+      "editora": "EJournal Publishing",
+      "url": "https://doi.org/10.18178/ijmlc.2018.8.4.718",
+      "resumo": "",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.1016/j.srs.2026.100490",
+      "titulo": "Ecoregion-specific dengue risk prediction in Peru using remote sensing, machine learning, and spatiotemporal modeling",
+      "autores": [
+        "Shubham K. Singh",
+        "Peilei Fan",
+        "Jiquan Chen"
+      ],
+      "ano": 2026,
+      "periodico": "Science of Remote Sensing",
+      "tipo": "journal-article",
+      "editora": "Elsevier BV",
+      "url": "https://doi.org/10.1016/j.srs.2026.100490",
+      "resumo": "",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.3390/rs15163985",
+      "titulo": "Prediction of Unpaved Road Conditions Using High-Resolution Optical Satellite Imagery and Machine Learning",
+      "autores": [
+        "Robin Workman",
+        "Patrick Wong",
+        "Alex Wright",
+        "Zhao Wang"
+      ],
+      "ano": 2023,
+      "periodico": "Remote Sensing",
+      "tipo": "journal-article",
+      "editora": "MDPI AG",
+      "url": "https://doi.org/10.3390/rs15163985",
+      "resumo": "Rural roads play a crucial role in fostering economic and social development in Africa. Local Road Authorities (LRAs) struggle to collect road condition data using conventional means due to logistical and resource issues. Poor road conditions and restricted mobility have severe economic consequences for the transport of goods and services. Lack of maintenance can increase costs three-fold. In this work, a novel framework is proposed in which earth observations using high-resolution optical satellite imagery are applied to measure the condition of unpaved roads, providing a vital input to maint",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.3390/rs15061652",
+      "titulo": "Prediction of the Area of High-Turbidity Water in the Yatsushiro Sea, Japan, Using Machine Learning with Satellite, Meteorological, and Oceanographic Data",
+      "autores": [
+        "Kazutaka Nagayama",
+        "Hideyuki Tonooka"
+      ],
+      "ano": 2023,
+      "periodico": "Remote Sensing",
+      "tipo": "journal-article",
+      "editora": "MDPI AG",
+      "url": "https://doi.org/10.3390/rs15061652",
+      "resumo": "Turbid water is known to affect aquatic ecosystems. If the spread of turbid water can be predicted, it is expected to lead to the prediction of damage caused by turbid water in rich aquatic ecosystems and aquaculture farms, and to countermeasures against turbid water. In this study, we developed a method for predicting the area of high-turbidity water using machine learning with satellite-observed total suspended solids (TSS) product and relatively readily available meteorological and oceanographic data (rainfall, wind direction and speed, atmospheric pressure, and tide level) in the past and",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v4",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2020,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v4",
+      "resumo": "Abstract Background: Dengue fever is a widespread viral disease and one of the world’s major pandemic vector-borne infections, causing serious hazard to humanity. The World Health Organisation (WHO) reported that the incidence of dengue fever has increased dramatically across the world in recent decades. WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. To date, no tested vaccine or treatment is available to stop or prevent dengue fever. Thus, the importance of predicting dengue outbreaks is significant. The current issue that should be addressed in den",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v5",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2020,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v5",
+      "resumo": "Abstract Background: Dengue fever is a widespread viral disease and one of the world’s major pandemic vector-borne infections, causing serious hazard to humanity. The World Health Organisation (WHO) reported that the incidence of dengue fever has increased dramatically across the world in recent decades. WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. To date, no tested vaccine or treatment is available to stop or prevent dengue fever. Thus, the importance of predicting dengue outbreaks is significant. The current issue that should be addressed in den",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v3",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2020,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v3",
+      "resumo": "Abstract Dengue fever is a widespread viral disease and one of the world’s major pandemic vector-borne infections, causing serious hazard to humanity. The World Health Organisation (WHO) reported that the incidence of dengue fever has increased dramatically across the world in recent decades. WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. To date, no tested vaccine or treatment is available to stop or prevent dengue fever. Thus, the importance of predicting dengue outbreaks is significant. The current issue that should be addressed in dengue outbreak",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v6",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2020,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v6",
+      "resumo": "Abstract Background: Dengue fever is a widespread viral disease and one of the world’s major pandemic vector-borne infections, causing serious hazard to humanity. The World Health Organisation (WHO) reported that the incidence of dengue fever has increased dramatically across the world in recent decades. WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. To date, no tested vaccine or treatment is available to stop or prevent dengue fever. Thus, the importance of predicting dengue outbreaks is significant. The current issue that should be addressed in den",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v2",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2019,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v2",
+      "resumo": "Abstract Background: Dengue fever is a widespread viral disease and one of the world’s major pandemic vector-borne infections, causing serious hazard to humanity. The World Health Organisation (WHO) reported that the incidence of dengue fever has increased dramatically across the world in recent decades. WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. To date, no tested vaccine or treatment is available to stop or prevent dengue fever. Thus, the importance of predicting dengue outbreaks is significant. The current issue that should be addressed in den",
+      "acesso": "aberto"
+    },
+    {
+      "fonte": "crossref",
+      "doi": "10.21203/rs.2.15755/v1",
+      "titulo": "Identification of Significant Climatic Risk Factors and Machine Learning Models in Dengue Outbreak Prediction",
+      "autores": [
+        "Felestin Yavari Nejad",
+        "Kasturi Dewi Varathan"
+      ],
+      "ano": 2019,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "Springer Science and Business Media LLC",
+      "url": "https://doi.org/10.21203/rs.2.15755/v1",
+      "resumo": "Abstract Background: Dengue fever is a widespread viral disease and one of the world’s main pandemic vector-borne infections and serious hazard to humanity. According to the World Health Organization (WHO), the incidence of dengue has grown dramatically worldwide in recent decades. The WHO currently estimates an annual incidence of 50–100 million dengue infections worldwide. Until today there is no tested vaccine or treatment to stop or prevent dengue fever thus the importance of dengue outbreak prediction is significant. The current issue in dengue outbreak prediction is accuracy. There are a",
+      "acesso": "aberto"
+    }
+  ],
+  "openalex": [
+    {
+      "fonte": "openalex",
+      "doi": "10.1038/s41598-024-52796-9",
+      "titulo": "A reproducible ensemble machine learning approach to forecast dengue outbreaks",
+      "autores": [
+        "Alessandro Sebastianelli",
+        "Dario Spiller",
+        "Raquel Carmo",
+        "James Wheeler",
+        "Artur Nowakowski",
+        "Ludmilla Viana Jacobson",
+        "Dohyung Kim",
+        "Hanoch Barlevi",
+        "Zoraya El Raiss Cordero",
+        "Felipe J. Colón‐González",
+        "Rachel Lowe",
+        "Silvia Liberata Ullo",
+        "Rochelle Schneider"
+      ],
+      "ano": 2024,
+      "periodico": "Scientific Reports",
+      "tipo": "article",
+      "citacoes": 67,
+      "acesso": "gold",
+      "url": "https://doi.org/10.1038/s41598-024-52796-9",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.1186/1472-6947-12-124",
+      "titulo": "A data-driven epidemiological prediction method for dengue outbreaks using local and remote sensing data",
+      "autores": [
+        "Anna L. Buczak",
+        "Phillip T. Koshute",
+        "Steven M. Babin",
+        "Brian H. Feighner",
+        "Sheryl Happel Lewis"
+      ],
+      "ano": 2012,
+      "periodico": "BMC Medical Informatics and Decision Making",
+      "tipo": "article",
+      "citacoes": 99,
+      "acesso": "gold",
+      "url": "https://doi.org/10.1186/1472-6947-12-124",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.4081/gh.2019.771",
+      "titulo": "Spatiotemporal dengue fever hotspots associated with climatic factors in Taiwan including outbreak predictions based on machine-learning",
+      "autores": [
+        "Sumiko Anno",
+        "Takeshi Hara",
+        "Hiroki Kai",
+        "Ming‐An Lee",
+        "Yi Chang",
+        "Kei Oyoshi",
+        "Yousei Mizukami",
+        "Takeo Tadono"
+      ],
+      "ano": 2019,
+      "periodico": "Geospatial health",
+      "tipo": "article",
+      "citacoes": 87,
+      "acesso": "gold",
+      "url": "https://doi.org/10.4081/gh.2019.771",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.1016/j.srs.2026.100490",
+      "titulo": "Ecoregion-specific dengue risk prediction in Peru using remote sensing, machine learning, and spatiotemporal modeling",
+      "autores": [
+        "Shubham K. Singh",
+        "Peilei Fan",
+        "Jiquan Chen"
+      ],
+      "ano": 2026,
+      "periodico": "Science of Remote Sensing",
+      "tipo": "article",
+      "citacoes": 0,
+      "acesso": "gold",
+      "url": "https://doi.org/10.1016/j.srs.2026.100490",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.1186/s12879-019-3874-x",
+      "titulo": "Prediction of dengue outbreaks based on disease surveillance, meteorological and socio-economic data",
+      "autores": [
+        "Raghvendra Jain",
+        "Sra Sontisirikit",
+        "Sopon Iamsirithaworn",
+        "Helmut Prendinger"
+      ],
+      "ano": 2019,
+      "periodico": "BMC Infectious Diseases",
+      "tipo": "article",
+      "citacoes": 136,
+      "acesso": "gold",
+      "url": "https://doi.org/10.1186/s12879-019-3874-x",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.3390/tropicalmed7100322",
+      "titulo": "Dengue Prediction in Latin America Using Machine Learning and the One Health Perspective: A Literature Review",
+      "autores": [
+        "Maritza Cabrera",
+        "J. Leake",
+        "José Naranjo-Torres",
+        "Nereida Josefina Valero",
+        "Julio C. Cabrera",
+        "Alfonso Javier Rodriguez-Morales"
+      ],
+      "ano": 2022,
+      "periodico": "Tropical Medicine and Infectious Disease",
+      "tipo": "article",
+      "citacoes": 48,
+      "acesso": "gold",
+      "url": "https://doi.org/10.3390/tropicalmed7100322",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.3390/ijerph20053858",
+      "titulo": "Relationship between Urban Environmental Components and Dengue Prevalence in Dhaka City—An Approach of Spatial Analysis of Satellite Remote Sensing, Hydro-Climatic, and Census Dengue Data",
+      "autores": [
+        "A. S. M. Maksud Kamal",
+        "Md Nahid Al Montakim",
+        "Md Asif Hasan",
+        "Mst. Maxim Parvin Mitu",
+        "Md. Yousuf Gazi",
+        "Md. Mahin Uddin",
+        "Md. Bodruddoza Mia"
+      ],
+      "ano": 2023,
+      "periodico": "International Journal of Environmental Research and Public Health",
+      "tipo": "article",
+      "citacoes": 38,
+      "acesso": "gold",
+      "url": "https://doi.org/10.3390/ijerph20053858",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.3389/fpubh.2026.1888753",
+      "titulo": "Geographic expansion, not viral intensification, leads to human dengue outbreaks in Mexico: a 40-year integrated remote sensing and machine learning analysis",
+      "autores": [
+        "Huixuan Li",
+        "Christopher Lee",
+        "S.T. Sweeney",
+        "Homayoun Valafar",
+        "Melissa S. Nolan"
+      ],
+      "ano": 2026,
+      "periodico": "Frontiers in Public Health",
+      "tipo": "article",
+      "citacoes": 0,
+      "acesso": "gold",
+      "url": "https://doi.org/10.3389/fpubh.2026.1888753",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.25046/aj050440",
+      "titulo": "Computational Intelligence and Statistical Learning Performances on Predicting Dengue Incidence using Remote Sensing Data",
+      "autores": [
+        "Nittaya Kerdprasop",
+        "Kittisak Kerdprasop",
+        "Paradee Chuaybamroong"
+      ],
+      "ano": 2020,
+      "periodico": "Advances in Science Technology and Engineering Systems Journal",
+      "tipo": "article",
+      "citacoes": 5,
+      "acesso": "diamond",
+      "url": "https://doi.org/10.25046/aj050440",
+      "resumo": null
+    },
+    {
+      "fonte": "openalex",
+      "doi": "10.1371/journal.pntd.0012599",
+      "titulo": "Hybrid Machine Learning Approach to Zero-Inflated Data Improves Accuracy of Dengue Prediction",
+      "autores": [
+        "Micanaldo Ernesto Francisco",
+        "Thaddeus M. Carvajal",
+        "Kozo Watanabe"
+      ],
+      "ano": 2024,
+      "periodico": "PLoS neglected tropical diseases",
+      "tipo": "article",
+      "citacoes": 15,
+      "acesso": "gold",
+      "url": "https://doi.org/10.1371/journal.pntd.0012599",
+      "resumo": null
+    }
+  ],
+  "scielo": [
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/scielopreprints.14778",
+      "titulo": "A Bioeconomia como Teste de Aprendizado para a Governança Ambiental Truncada no Brasil",
+      "autores": [
+        "Débora Naidhig",
+        "Rosana Icassatti Corazza"
+      ],
+      "ano": 2026,
+      "periodico": null,
+      "tipo": "posted-content",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/scielopreprints.14778",
+      "resumo": "Este artigo analisa a trajetória de institucionalização da governança ambiental no Brasil para elucidar os desafios contemporâneos na construção de uma Política Nacional de Bioeconomia, objetivando verificar se o novo ciclo de políticas da bioeconomia consegue superar os padrões históricos de fragmentação institucional e déficits de implementação. A pesquisa foi realizada por meio de uma revisão narrativa da literatura especializada e da análise documental de marcos legais e institucionais. A hipótese subjacente – de que a governança ambiental brasileira é marcada por uma “institucionalização",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/s0102-311x2008000500001",
+      "titulo": "Dengue no Brasil: desafios para o seu controle",
+      "autores": [
+        "Roberto de Andrade Medronho"
+      ],
+      "ano": 2008,
+      "periodico": "Cadernos de Saúde Pública",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/s0102-311x2008000500001",
+      "resumo": "",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/s0104-06182010000200005",
+      "titulo": "Inovação, cooperação e aprendizado no setor de software no Brasil: análise exploratória baseada no conceito de Arranjos Produtivos Locais (APLs)",
+      "autores": [
+        "Jorge Britto",
+        "Fabio Stallivieri"
+      ],
+      "ano": 2010,
+      "periodico": "Economia e Sociedade",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/s0104-06182010000200005",
+      "resumo": "O artigo procura articular a discussão sobre o processo de construção de competências na produção de software no Brasil à distribuição espacial dessas atividades, utilizando para isso um referencial analítico baseado no conceito de \"arranjos produtivos locais\" (APLs), no qual ressalta-se a importância da dimensão local-institucional para o aprofundamento de diferentes formas de aprendizado e para o reforço do potencial inovativo e da competitividade industrial. A análise realizada desdobra-se em cinco seções. A primeira seção apresenta uma caracterização geral do setor e do referencial analíti",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/2358-2898202514510032i",
+      "titulo": "Impact of dengue research funded by the Ministry of Health in Brazil",
+      "autores": [
+        "Gabriela Bardelini Tavares Melo",
+        "Marcos Takashi Obara",
+        "Antonia Angulo-Tuesta"
+      ],
+      "ano": 2025,
+      "periodico": "Saúde em Debate",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/2358-2898202514510032i",
+      "resumo": "ABSTRACT This study assessed the impact of 24 dengue research projects funded by the Department of Science and Technology of the Ministry of Health, in partnership with the National Council for Scientific and Technological Development, in the years 2006, 2008, and 2012, using the dimensions of knowledge advancement, research capacity, informed decision-making, and health impacts as reference from the Impact Evaluation Framework of the Canadian Academy of Health Sciences. Data were collected through document reviews, questionnaires, and interviews with the coordinators of the dengue research pr",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/2358-2898202514510032p",
+      "titulo": "Impacto de pesquisas de dengue financiadas pelo Ministério da Saúde no Brasil",
+      "autores": [
+        "Gabriela Bardelini Tavares Melo",
+        "Marcos Takashi Obara",
+        "Antonia Angulo-Tuesta"
+      ],
+      "ano": 2025,
+      "periodico": "Saúde em Debate",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/2358-2898202514510032p",
+      "resumo": "RESUMO Este estudo avaliou o impacto de 24 pesquisas sobre dengue financiadas pelo Departamento de Ciência e Tecnologia do Ministério da Saúde, em parceria com o Conselho Nacional de Desenvolvimento Científico e Tecnológico, nos anos 2006, 2008 e 2012, utilizando como referência as dimensões avanços do conhecimento, capacidade de pesquisa, tomada de decisão informada e impactos na saúde da Matriz de Avaliação de Impacto da Canadian Academy of Health Sciences. Os dados foram coletados por levantamento documental, questionários e entrevistas com os/as coordenadores/as das pesquisas de dengue. Fo",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/s1020-49892006001100012",
+      "titulo": "Epidemiología molecular del virus del dengue tipo 3 en Brasil y Paraguay",
+      "autores": [],
+      "ano": 2006,
+      "periodico": "Revista Panamericana de Salud Pública",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/s1020-49892006001100012",
+      "resumo": "",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/s0102-311x2002000300030",
+      "titulo": "Aspectos críticos do controle do dengue no Brasil",
+      "autores": [
+        "Pedro Luiz Tauil"
+      ],
+      "ano": 2002,
+      "periodico": "Cadernos de Saúde Pública",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/s0102-311x2002000300030",
+      "resumo": "O dengue é hoje a principal doença re-emergente no mundo. Na ausência de uma vacina preventiva eficaz, de tratamento etiológico e quimioprofilaxia efetivos, o único elo vulnerável para reduzir a sua transmissão é o mosquito Aedes aegypti, seu principal vetor. As dificuldades de combater este mosquito, em grandes e médias cidades, são muitas. Há facilidades para sua proliferação e limitações para reduzir seus índices de infestação, geradas pela complexidade da vida urbana atual. Os objetivos do controle do dengue devem ser estabelecidos com base nos conhecimentos científicos e técnicos disponív",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    },
+    {
+      "fonte": "scielo/crossref",
+      "doi": "10.1590/1806-93472016v36n71_12",
+      "titulo": "Castellucci, Aldrin A. S. Trabalhadores e política no Brasil: do aprendizado do Império aos sucessos da Primeira República",
+      "autores": [
+        "Cláudia Viscardi"
+      ],
+      "ano": 2016,
+      "periodico": "Revista Brasileira de História",
+      "tipo": "journal-article",
+      "editora": "FapUNIFESP (SciELO)",
+      "url": "https://doi.org/10.1590/1806-93472016v36n71_12",
+      "resumo": "",
+      "acesso": "aberto",
+      "colecao": "SciELO"
+    }
+  ]
+}

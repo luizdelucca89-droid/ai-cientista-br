@@ -59,12 +59,14 @@ def _esc(texto: str) -> str:
     return "".join(trocas.get(c, c) for c in texto)
 
 
-def construir_tex(consolidado: dict, refs: list[dict]) -> str:
+def construir_tex(consolidado: dict, refs: list[dict], sota: dict | None = None) -> str:
     p = consolidado["principal"]
     s = consolidado["sensibilidade"]
     m = p["metricas"]
     h = p["hipotese"]
     prov = consolidado["proveniencia"]
+    sota = sota or {}
+    prov_extra = consolidado.get("proveniencia_extra", {})
 
     A, B, C = m["A"], m["B"], m["C"]
     sA, sB, sC = s["metricas"]["A"], s["metricas"]["B"], s["metricas"]["C"]
@@ -80,12 +82,27 @@ def construir_tex(consolidado: dict, refs: list[dict]) -> str:
     dois = [r["doi"] for r in refs if r.get("doi")]
     cit = lambda i: f"\\cite{{{dois[i % len(dois)]}}}"
 
+    # Mapeia um DOI específico para o índice na lista de referências (se existir).
+    def _cit_doi(doi: str) -> str:
+        return f"\\cite{{{doi}}}" if doi in dois else ""
+
     n_tab = len(prov.get("variaveis_tabulares") or [])
     n_sat = len(prov.get("variaveis_satelite") or [])
     shap_linhas = "\n".join(
         f"    {_esc(nome)} & {_fmt(val, 5)} \\\\"
         for nome, val in list(shap["importancias"].items())[:8]
     )
+
+    # SOTA real, extraído dos abstracts (Tarefa 1). Os números vêm de
+    # resultados/sota_metricas.json, com citação textual de origem.
+    sota_ref = sota.get("sota_referencia_brasileira") or {}
+    sota_linhas = "\n".join(
+        f"    {_esc(r.get('primeiro_autor') or '?')} ({r.get('ano')}) & "
+        f"{_esc(r.get('metrica') or '')} & {_fmt(r.get('valor_max'), 2)} & "
+        f"\\cite{{{r['doi']}}} \\\\"
+        for r in (sota.get("referencias") or [])
+    )
+
 
     return rf"""\documentclass[12pt,a4paper]{{article}}
 \usepackage[utf8]{{inputenc}}
@@ -147,16 +164,50 @@ ao (i) isolar o efeito do satélite com um cenário de ablação de mesmo algori
 (ii) usar validação estritamente temporal e (iii) reportar o resultado nulo com
 o mesmo rigor que um resultado positivo.
 
+\textbf{{Estado da arte (métricas extraídas dos abstracts originais).}} A
+Tabela~\ref{{tab:sota}} reúne as métricas reportadas por estudos comparáveis,
+obtidas dos abstracts reais via Crossref/OpenAlex. O SOTA de referência mais
+direto é o de Souza et al. ({sota_ref.get('ano', '?')}), único estudo brasileiro
+da lista, com \textbf{{acurácia {_fmt(sota_ref.get('valor'), 2)}}} sobre dados
+exclusivamente climáticos. É contra esse patamar que nosso baseline tabular se
+posiciona.
+
+\begin{{table}}[h]
+\centering
+\caption{{Estado da arte: métricas reportadas nos abstracts originais (Tarefa 1).}}
+\label{{tab:sota}}
+\begin{{tabular}}{{llrr}}
+\toprule
+Estudo & Métrica & Valor (\%) & Ref. \\
+\midrule
+{sota_linhas}
+\bottomrule
+\end{{tabular}}
+\end{{table}}
+
 \section{{Materiais}}
-\textbf{{InfoDengue}} (Fiocruz/FGV), semanas epidemiológicas observadas,
-\url{{https://info.dengue.mat.br/api/alertcity}}: {prov['n_amostras']} amostras,
-{prov['n_municipios']} municípios, {n_tab} atributos tabulares.
-\textbf{{NASA GIBS/MODIS}}, camada \texttt{{MODIS\_Terra\_L3\_NDVI\_16Day}},
-\url{{https://gibs.earthdata.nasa.gov}}, colormap oficial
+\textbf{{InfoDengue}} (Fiocruz/FGV), \emph{{versão da API}} \texttt{{alertcity}},
+semanas epidemiológicas observadas, \url{{https://info.dengue.mat.br/api/alertcity}}:
+{prov['n_amostras']} amostras, {prov['n_municipios']} municípios, {n_tab}
+atributos tabulares. Coleta: {prov.get('coletado_em', 'n/d')}.
+\textbf{{NASA GIBS/MODIS}}, camada \texttt{{MODIS\_Terra\_L3\_NDVI\_16Day}}
+(produto MOD13, composto de 16 dias), \url{{https://gibs.earthdata.nasa.gov}},
+colormap oficial \texttt{{MODIS\_L3\_NDVI.xml}} (142 entradas RGB$\to$NDVI),
 \url{{https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS\_L3\_NDVI.xml}}:
 {n_sat} atributos de satélite.
 \textbf{{Malha municipal}} do IBGE, \url{{https://servicodados.ibge.gov.br/api/v3/malhas}}.
 Divisão temporal: treino {p['n_treino']}, teste {p['n_teste']} ({p['n_positivos_teste']} positivos).
+
+\textbf{{Limitação de fonte declarada (INPE/PRODES).}} Testamos as camadas
+\texttt{{prodes-amazon-nb:yearly\_deforestation\_biome}} e \texttt{{deter-amz:deter\_amz}}
+do GeoServer do TerraBrasilis/INPE. Ambas cobrem apenas a Amazônia Legal: dos
+{prov['n_municipios']} municípios do estudo, somente Manaus apresenta alertas
+(149 alertas DETER em 2022--2024; zero nos demais sete). PRODES/DETER são,
+ainda, anuais e estaduais, inadequados à agregação semanal municipal. Por isso
+\textbf{{não}} foram usados como atributo, e nenhuma feature foi fabricada para
+substituí-los: os atributos de satélite efetivos vêm do NDVI/MODIS, de cobertura
+nacional. Evidência em \texttt{{resultados/evidencia\_inpe\_prodes.json}}.
+
 
 \section{{Métodos}}
 \subsection{{Pipeline multiagente e roteamento MoE}}
@@ -281,6 +332,8 @@ def main() -> int:
 
     consolidado = json.loads((RAIZ / "resultados" / "resultado_consolidado.json").read_text(encoding="utf-8"))
     refs = json.loads((RAIZ / "resultados" / "referencias_crossref.json").read_text(encoding="utf-8"))
+    caminho_sota = RAIZ / "resultados" / "sota_metricas.json"
+    sota = json.loads(caminho_sota.read_text(encoding="utf-8")) if caminho_sota.exists() else {}
 
     destino = RAIZ / args.saida
     destino.mkdir(parents=True, exist_ok=True)
@@ -291,7 +344,7 @@ def main() -> int:
         if origem.exists():
             (destino / "figuras" / nome).write_bytes(origem.read_bytes())
 
-    tex = construir_tex(consolidado, refs)
+    tex = construir_tex(consolidado, refs, sota)
     caminho_tex = destino / "paper_sbc.tex"
     caminho_tex.write_text(tex, encoding="utf-8")
     print(f"LaTeX escrito em {caminho_tex}")
@@ -303,7 +356,8 @@ def main() -> int:
             return 0
         cmd = [motor, "-X", "compile", caminho_tex.name, "--outdir", str(destino)] if "tectonic" in motor \
             else [motor, "-interaction=nonstopmode", "-output-directory", str(destino), caminho_tex.name]
-        r = subprocess.run(cmd, cwd=destino, capture_output=True, text=True)
+        r = subprocess.run(cmd, cwd=destino, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
         pdf = destino / "paper_sbc.pdf"
         if pdf.exists():
             print(f"PDF gerado: {pdf}")
