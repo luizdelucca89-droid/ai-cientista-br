@@ -278,3 +278,27 @@ Duas armadilhas reais de cobertura, descobertas com o Gemini:
 - **Reprodutibilidade:** python experimentos/dengue_ndvi.py --offline reproduz
   os mesmos números do cache em segundos. Os números do paper são injetados de
   resultados/resultado_consolidado.json, nunca digitados.
+
+## Sessão: Tarefas 1-5 fechadas (paper + PDF + pacote) — out/2026
+- **pdflatex agora existe.** `apt-get install texlive-latex-base texlive-latex-recommended
+  texlive-fonts-recommended` e, crucialmente, **`texlive-lang-portuguese`** — sem ele o
+  `\usepackage[brazil]{babel}` falha com "Unknown option 'brazil'" e nenhum PDF sai.
+  `experimentos/gerar_paper.py --compilar` detecta pdflatex e gera paper/paper_sbc.pdf (9 pág.).
+- **subprocess do pdflatex:** a saída vem em latin-1; usar `subprocess.run(..., encoding="utf-8",
+  errors="replace")` senão `UnicodeDecodeError` no 0xe7. Corrigido em gerar_paper.py.
+- **PDF sob `*.pdf` no .gitignore:** o manuscrito exige exceção explícita
+  (`!paper/paper_sbc.pdf`) para ser versionado.
+- **Gate de fidelidade com duas fontes novas:** `sota_metricas.json` e
+  `fatos_verificados.json` entram como fontes em `relatorio_elite._gate_numerico()`.
+  Fatos registrados: 142 (entradas do colormap MODIS) e 149 (alertas DETER em Manaus).
+- **INPE/PRODES+DETER cobrem só a Amazônia Legal:** dos 8 municípios, só Manaus tem
+  alertas DETER (149); os outros 7 = 0. Está declarado como limitação no paper, sem
+  inventar features para compensar.
+- **Push:** o GITHUB_TOKEN do ambiente pertence a `luigimartim180-ops`, sem permissão no
+  repo. Usar o PAT do dono (`luizdelucca89-droid`) para push e para criar PR via API
+  (o tool create_pr usa o token do ambiente e dá 403).
+- **Ciclo autônomo real** (`main.py --topic ... --force`): ciclo #183, ~66 min, status
+  concluído. A cascata MoE cai de provider sob timeout/503 sozinha. O gate numérico do
+  orquestrador flagrou 7 números inventados pelo LLM e disparou reparo automático —
+  o mecanismo anti-alucinação funciona de ponta a ponta.
+- **Testes:** 157 passed, 0 skipped (antes 144 + 2 skips de LaTeX que viraram testes reais).
