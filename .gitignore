@@ -31,3 +31,6 @@ pacote_open_science/
 *.toc
 *.bbl
 *.blg
+
+# PDF do manuscrito deve ser versionado
+!paper/paper_sbc.pdf
