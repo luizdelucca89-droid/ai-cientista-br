@@ -131,7 +131,7 @@
     "origem": "InfoDengue (Fiocruz/FGV) + NASA GIBS/MODIS NDVI (agregado por município do IBGE)",
     "fonte_url": "https://info.dengue.mat.br/api/alertcity | https://gibs.earthdata.nasa.gov",
     "tipo": "dados_reais",
-    "coletado_em": "2026-10-20T22:16:48",
+    "coletado_em": "2026-10-20T23:46:02",
     "n_amostras": 1233,
     "n_variaveis": 12,
     "n_municipios": 8,

@@ -24,6 +24,16 @@ def _gate_numerico() -> tuple[bool, str]:
     cons = json.loads((RAIZ / "resultados" / "resultado_consolidado.json").read_text(encoding="utf-8"))
     refs = json.loads((RAIZ / "resultados" / "referencias_crossref.json").read_text(encoding="utf-8"))
     fontes = set(collect_numbers(cons)) | {float(r["ano"]) for r in refs if r.get("ano")}
+    # Números do estado da arte (Tarefa 1) também são lastro legítimo: cada um
+    # vem de sota_metricas.json, com citação textual do abstract de origem.
+    caminho_sota = RAIZ / "resultados" / "sota_metricas.json"
+    if caminho_sota.exists():
+        fontes |= collect_numbers(json.loads(caminho_sota.read_text(encoding="utf-8")))
+    # Fatos medidos diretamente nas fontes (colormap, cobertura DETER): também
+    # são lastro legítimo, registrados com o valor medido.
+    caminho_fatos = RAIZ / "resultados" / "fatos_verificados.json"
+    if caminho_fatos.exists():
+        fontes |= collect_numbers(json.loads(caminho_fatos.read_text(encoding="utf-8")))
     fontes |= {abs(f) for f in list(fontes)}
     tex = (RAIZ / "paper" / "paper_sbc.tex").read_text(encoding="utf-8")
     corpo = tex.split(r"\begin{document}", 1)[1].split(r"\begin{thebibliography}", 1)[0]

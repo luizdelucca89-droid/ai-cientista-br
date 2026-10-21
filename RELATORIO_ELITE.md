@@ -1,14 +1,14 @@
 # RELATÓRIO ELITE — AI Cientista BR
 
 **Tema:** NDVI de satélite na predição de surtos de dengue no Brasil.
-**Data:** 2026-10-20 22:24 UTC
+**Data:** 2026-10-20 23:55 UTC
 **Veredito:** **APROVADO**
 
 ## Checklist rigoroso
 
 - [x] Portão de fidelidade numérica: 0 números sem lastro? — **Sim** (0 números sem lastro)
 - [x] Validação estritamente temporal (sem data leakage)? — **Sim** (temporal (TimeSeriesSplit expansivo + holdout cronológico))
-- [x] Citações cruzadas com metadados reais (sem DOI alucinado)? — **Sim** (12 citações, 0 DOIs não verificados)
+- [x] Citações cruzadas com metadados reais (sem DOI alucinado)? — **Sim** (16 citações, 0 DOIs não verificados)
 - [x] Estudo de ablação e interpretação SHAP incluídos? — **Sim** (ablação=True, SHAP=True)
 - [x] Pacote ZIP contém os 5 artefatos? — **Sim** (paper (tex+pdf)=ok, codigo_experimento.py=ok, requirements_frozen.txt=ok, metadata_dados.json=ok, DECLARACAO_IA_E_REPRODUTIBILIDADE.md=ok)
 - [x] Seção de Broader Impact e viés de dados incluída? — **Sim** (seção presente=True)

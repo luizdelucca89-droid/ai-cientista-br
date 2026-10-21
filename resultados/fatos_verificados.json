@@ -1,0 +1,9 @@
+{
+  "_comentario": "Fatos quantitativos citados no paper, medidos diretamente das fontes reais. Servem de lastro ao portao de fidelidade numerica.",
+  "colormap_modis_ndvi_entradas": 142,
+  "colormap_url": "https://gibs.earthdata.nasa.gov/colormaps/v1.0/MODIS_L3_NDVI.xml",
+  "deter_alertas_manaus_2022_2024": 149,
+  "deter_municipios_com_cobertura": 1,
+  "deter_municipios_do_estudo": 8,
+  "verificado_em": "2026-10-20T23:53:23"
+}

@@ -1,0 +1,55 @@
+{
+  "fonte": "INPE/TerraBrasilis GeoServer WFS",
+  "camadas_testadas": {
+    "prodes-amazon-nb:yearly_deforestation_biome": {
+      "features": 802312,
+      "props": [
+        "uuid",
+        "fid",
+        "state",
+        "path_row",
+        "main_class",
+        "class_name",
+        "def_cloud",
+        "julian_day",
+        "image_date",
+        "year",
+        "area_km",
+        "scene_id"
+      ]
+    },
+    "deter-amz:deter_amz": {
+      "features": 462921,
+      "props": [
+        "gid",
+        "classname",
+        "quadrant",
+        "path_row",
+        "view_date",
+        "sensor",
+        "satellite",
+        "areauckm",
+        "uc",
+        "areamunkm",
+        "municipality",
+        "mun_geocod"
+      ]
+    }
+  },
+  "consulta_deter": "mun_geocod='<geocode>' AND view_date>='2022-01-01' AND view_date<='2024-12-31'",
+  "cobertura_por_municipio_do_estudo": {
+    "Belo Horizonte": 0,
+    "Curitiba": 0,
+    "Goiania": 0,
+    "Manaus": 149,
+    "Recife": 0,
+    "Rio de Janeiro": 0,
+    "Salvador": 0,
+    "Sao Paulo": 0
+  },
+  "total_alertas": 149,
+  "municipios_do_estudo": 8,
+  "municipios_com_cobertura": 1,
+  "conclusao": "DETER/PRODES cobrem apenas a Amazonia Legal; dos 8 municipios do estudo, somente Manaus tem alertas. Nao e possivel usar PRODES/DETER como feature semanal municipal para os demais 7. As features de satelite efetivamente usadas vem do NASA GIBS/MODIS NDVI (cobertura nacional).",
+  "verificado_em": "2026-10-20T23:45:40"
+}

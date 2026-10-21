@@ -1,0 +1,57 @@
+{
+  "_comentario": "Metricas de estado da arte extraidas literalmente dos abstracts reais baixados via OpenAlex/Crossref. Cada entrada traz a citacao textual de origem para auditoria. Nenhum numero foi inferido.",
+  "referencias": [
+    {
+      "doi": "10.1016/j.eswa.2021.116324",
+      "primeiro_autor": "Souza",
+      "ano": 2022,
+      "metrica": "acuracia",
+      "valor_min": 0.72,
+      "valor_max": 0.8,
+      "citacao": "improved earlier prediction accuracy scores from 0.72 to 0.80",
+      "escopo": "dengue, Brasil, grandes centros urbanos, apenas clima"
+    },
+    {
+      "doi": "10.1186/s12911-021-01493-y",
+      "primeiro_autor": "Yavari Nejad",
+      "ano": 2021,
+      "metrica": "acuracia",
+      "valor_max": 92.35,
+      "citacao": "increased accuracy to 92.35% for predicting dengue outbreaks",
+      "escopo": "rede bayesiana, fatores climaticos"
+    },
+    {
+      "doi": "10.1038/s41598-020-79193-2",
+      "primeiro_autor": "Salim",
+      "ano": 2021,
+      "metrica": "acuracia",
+      "valor_max": 70.0,
+      "citacao": "Accuracy = 70%, Sensitivity = 14%, Specificity = 95%, Precision = 56%",
+      "escopo": "Malasia, ML"
+    },
+    {
+      "doi": "10.31449/inf.v43i3.1548",
+      "primeiro_autor": "Iqbal",
+      "ano": 2019,
+      "metrica": "acuracia",
+      "valor_max": 92.0,
+      "citacao": "accuracy of 92% with sensitivity and specificity of 90 and 94 %",
+      "escopo": "avaliacao de desempenho de ML"
+    },
+    {
+      "doi": "10.18280/ria.370521",
+      "primeiro_autor": "Thirugnanam",
+      "ano": 2023,
+      "metrica": "F1",
+      "valor_max": 98.0,
+      "citacao": "F1 Score of 98",
+      "escopo": "comparacao de algoritmos de ML"
+    }
+  ],
+  "sota_referencia_brasileira": {
+    "doi": "10.1016/j.eswa.2021.116324",
+    "valor": 0.8,
+    "metrica": "acuracia",
+    "justificativa": "Estudo brasileiro, mais diretamente comparavel; reporta 0,80 com apenas dados climaticos."
+  }
+}
